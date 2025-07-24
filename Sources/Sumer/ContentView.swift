@@ -1,27 +1,17 @@
 import SwiftUI
 
 struct ContentView: View {
-    var path: String?
-    @State private var selectedItem: String?
-
+    var path: URL?
     var body: some View {
-        if let path = path {
-            NavigationSplitView {
-                List(selection: $selectedItem) {
-                    OutlineGroup(data, children: \.children) { item in
-                        Text("\(item.description)")
-                    }
-                }
-                .navigationTitle("Sidebar")
-            } detail: {
-                if let item = selectedItem {
-                    Text("Selected: \(item)")
-                } else {
-                    Text("No selection")
-                }
-                Text("You are editing " + path + "!")
+        if let path {
+            let isDirectory = try? path.isDirectory
+            if isDirectory != nil && isDirectory == true {
+                ProjectView(path)
+            } else {
+                DiscreteFilesView(path)
             }
         } else {
+            DiscreteFilesView()
         }
     }
 }

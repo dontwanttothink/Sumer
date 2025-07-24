@@ -1,6 +1,3 @@
-// The Swift Programming Language
-// https://docs.swift.org/swift-book
-
 import Plow
 import SwiftUI
 
@@ -16,26 +13,24 @@ struct SumerApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
-            ContentView(path: "hi")
+        WindowGroup(id: "editor", for: URL.self) { $url in
+            ContentView(path: url)
         }
         .commands {
-            SidebarCommands()
-            TextEditingCommands()
-            CommandGroup(after: .newItem) {
-                Button("Open…", systemImage: "arrow.up.right") {
-                    // open
-                }.keyboardShortcut("O")
-                Menu {
-                    Button("Clear Menu") {}.disabled(true)
-                } label: {
-                    Label("Open Recent", systemImage: "clock")
-                }
-            }
+            SumerCommands()
         }
 
         Settings {
             SettingsView()
+        }
+    }
+
+    static func open(filesOrDocuments: [URL], _ openWindow: OpenWindowAction) {
+        // update with logic to identify file system hierarchy
+        // replace empty windows
+
+        for fileOrDocument in filesOrDocuments {
+            openWindow(value: fileOrDocument)
         }
     }
 }

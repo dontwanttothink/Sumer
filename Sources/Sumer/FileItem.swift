@@ -1,36 +1,60 @@
+import Foundation
+
+// Performance: repeated IO calls are maybe unnecessary, though
+// I think the Outline thing is lazy.
+
 struct FileItem: Hashable, Identifiable, CustomStringConvertible {
-    var id: Self { self }
-    var name: String
-    var children: [FileItem]? = nil
-    var description: String {
-        switch children {
-        case nil:
-            return "📄 \(name)"
-        case .some(let children):
-            return children.isEmpty ? "📂 \(name)" : "📁 \(name)"
+    let id = UUID()
+    let initialPath: URL
+    private var bookmarkData: Data?
+
+    private func findNewPath() -> URL? {
+        if let bookmarkData = bookmarkData {
+            var isStale = false
+            let bookmarkURL = try? URL(
+                resolvingBookmarkData: bookmarkData, bookmarkDataIsStale: &isStale)
+
+            if isStale {
+                // ?
+            }
+
+            return bookmarkURL
+        }
+        return nil
+    }
+
+    private func latestPath() -> URL {
+        return findNewPath() ?? initialPath
+    }
+
+    private let fileManager: FileManager
+
+    var isDirectory: Bool {
+        get throws {
+            try latestPath().isDirectory
         }
     }
-}
 
-let data =
-    FileItem(
-        name: "users",
-        children: [
-            FileItem(
-                name: "user1234",
-                children: [
-                    FileItem(
-                        name: "Photos",
-                        children: [
-                            FileItem(name: "photo001.jpg"),
-                            FileItem(name: "photo002.jpg"),
-                        ]),
-                    FileItem(name: "Movies", children: [FileItem(name: "movie001.mp4")]),
-                    FileItem(name: "Documents", children: []),
-                ]),
-            FileItem(
-                name: "newuser",
-                children: [
-                    FileItem(name: "Documents", children: [])
-                ]),
-        ])
+    init(path: URL) {
+        self.initialPath = path
+        self.bookmarkData = try? path.bookmarkData()
+        self.fileManager = FileManager.default
+    }
+
+    /**
+     * Accessing this property incurs file system operations.
+     */
+    var children: [FileItem]? {
+        let contents = try? fileManager.contentsOfDirectory(
+            at: latestPath(), includingPropertiesForKeys: [.nameKey])
+
+        if let contents {
+            return contents.map({ FileItem(path: $0) })
+        }
+        return nil
+    }
+
+    var description: String {
+        return "\(latestPath().lastPathComponent)"
+    }
+}
