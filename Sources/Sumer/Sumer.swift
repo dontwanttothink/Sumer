@@ -23,7 +23,14 @@ struct SumerApp: App {
             SidebarCommands()
             TextEditingCommands()
             CommandGroup(after: .newItem) {
-                Button("Open…", systemImage: "play") {}.keyboardShortcut("O")
+                Button("Open…", systemImage: "arrow.up.right") {
+                    // open
+                }.keyboardShortcut("O")
+                Menu {
+                    Button("Clear Menu") {}.disabled(true)
+                } label: {
+                    Label("Open Recent", systemImage: "clock")
+                }
             }
         }
 

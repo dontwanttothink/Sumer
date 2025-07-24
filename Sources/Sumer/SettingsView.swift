@@ -1,39 +1,39 @@
 import SwiftUI
 
-enum SettingsTab {
-    case first, second, third
+struct SettingsView: View {
+    var body: some View {
+        TabView {
+            Tab("General", systemImage: "gear") {
+                GeneralSettingsView()
+            }
+            Tab("Advanced", systemImage: "star") {
+                AdvancedSettingsView()
+            }
+        }
+        .scenePadding()
+        .frame(maxWidth: 350, minHeight: 100)
+    }
 }
 
-struct SettingsView: View {
-    @State var selected: SettingsTab = .first
+struct GeneralSettingsView: View {
+    @AppStorage("showPreview") private var showPreview = true
+    @AppStorage("fontSize") private var fontSize = 12.0
 
     var body: some View {
-        VStack {
-            HStack {
-                Button {
-                } label: {
-                    Image(systemName: "star")
-                        .frame(width: 20, height: 20)
-                }
-                Button {
-                } label: {
-                    Image(systemName: "folder")
-                        .frame(width: 20, height: 20)
-                }
-                Button {
-                } label: {
-                    Image(systemName: "square.and.arrow.down.badge.clock")
-                        .frame(width: 20, height: 20)
-                }
-                Button {
-                } label: {
-                    Image(systemName: "square.and.arrow.up.on.square")
-                        .frame(width: 20, height: 20)
-                }
+        Form {
+            Toggle("Show Previews", isOn: $showPreview)
+            Slider(value: $fontSize, in: 12...96) {
+                Text("Font Size (\(fontSize, specifier: "%.0f") pts)").monospacedDigit()
             }
-            VStack {
-                Text("Settings go here")
-            }.frame(minHeight: 100)
-        }.padding()
+        }
+    }
+
+}
+
+struct AdvancedSettingsView: View {
+    var body: some View {
+        VStack {
+            Text("très avancé pour moi")
+        }
     }
 }
