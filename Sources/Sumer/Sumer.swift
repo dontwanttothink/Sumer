@@ -7,6 +7,8 @@ import SwiftUI
 @main
 struct SumerApp: App {
     init() {
+        NSWindow.allowsAutomaticWindowTabbing = false
+
         DispatchQueue.main.async {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate()
@@ -14,11 +16,19 @@ struct SumerApp: App {
     }
 
     var body: some Scene {
-        DocumentGroup(newDocument: SumerDocument()) { file in
-            ContentView(path: file.fileURL?.path)
+        WindowGroup {
+            ContentView(path: "hi")
         }
-        // WindowGroup {
-        //     ContentView(path: "hi")
-        // }
+        .commands {
+            SidebarCommands()
+            TextEditingCommands()
+            CommandGroup(after: .newItem) {
+                Button("Open…", systemImage: "play") {}.keyboardShortcut("O")
+            }
+        }
+
+        Settings {
+            SettingsView()
+        }
     }
 }
