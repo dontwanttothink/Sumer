@@ -1,60 +1,57 @@
 import Foundation
 
-// Performance: repeated IO calls are maybe unnecessary, though
-// I think the Outline thing is lazy.
+extension NSError {
+    var posixCode: Int? {
+        if self.domain == NSCocoaErrorDomain,
+            let underlying = self.userInfo[NSUnderlyingErrorKey] as? NSError,
+            underlying.domain == NSPOSIXErrorDomain
+        {
+            return underlying.code
+        }
+        return nil
+    }
+}
 
-struct FileItem: Hashable, Identifiable, CustomStringConvertible {
-    let id = UUID()
-    let initialPath: URL
-    private var bookmarkData: Data?
+enum FileItemError: Error {
+    case NoEntry
+}
 
-    private func findNewPath() -> URL? {
-        if let bookmarkData = bookmarkData {
-            var isStale = false
-            let bookmarkURL = try? URL(
-                resolvingBookmarkData: bookmarkData, bookmarkDataIsStale: &isStale)
+class FileItem {
+    private var root: FileItemIdentifier
+    private(set) var children: [FileItem]
 
-            if isStale {
-                // ?
+    var name: String {
+        root.path.lastPathComponent
+    }
+
+    init(root: URL) {
+        self.root = FileItemIdentifier(path: root)
+
+        self.children = []
+    }
+
+    func refreshLocation() -> Bool {
+        return root.updatePath()
+    }
+
+    func updateChildren() throws {
+        let fm = FileManager.default
+        do {
+            let contents = try fm.contentsOfDirectory(
+                at: root.path, includingPropertiesForKeys: nil)
+            children = contents.map({ FileItem(root: $0) })
+        } catch {
+            let nsError = error as NSError
+            if let posixCode = nsError.posixCode {
+                if posixCode == ENOTDIR {
+                    self.children = []
+                    return
+                } else if posixCode == ENOENT {
+                    throw FileItemError.NoEntry
+                }
             }
 
-            return bookmarkURL
+            throw error
         }
-        return nil
-    }
-
-    private func latestPath() -> URL {
-        return findNewPath() ?? initialPath
-    }
-
-    private let fileManager: FileManager
-
-    var isDirectory: Bool {
-        get throws {
-            try latestPath().isDirectory
-        }
-    }
-
-    init(path: URL) {
-        self.initialPath = path
-        self.bookmarkData = try? path.bookmarkData()
-        self.fileManager = FileManager.default
-    }
-
-    /**
-     * Accessing this property incurs file system operations.
-     */
-    var children: [FileItem]? {
-        let contents = try? fileManager.contentsOfDirectory(
-            at: latestPath(), includingPropertiesForKeys: [.nameKey])
-
-        if let contents {
-            return contents.map({ FileItem(path: $0) })
-        }
-        return nil
-    }
-
-    var description: String {
-        return "\(latestPath().lastPathComponent)"
     }
 }

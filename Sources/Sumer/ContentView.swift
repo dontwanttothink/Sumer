@@ -1,7 +1,12 @@
 import SwiftUI
 
 struct ContentView: View {
-    var path: URL?
+    @State private var path: URL?
+
+    init(path: URL?) {
+        self.path = path
+    }
+
     var body: some View {
         if let path {
             let isDirectory = try? path.isDirectory

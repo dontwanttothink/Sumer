@@ -18,5 +18,6 @@ let package = Package(
                 "Plow"
             ]
         ),
+        .testTarget(name: "SumerTests", dependencies: ["Sumer"], path: "Tests"),
     ]
 )

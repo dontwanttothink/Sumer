@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ProjectView: View {
-    @State private var path: URL
+    private let path: URL
     @State private var selection: Set<URL>?
 
     init(_ path: URL) {
@@ -10,15 +10,9 @@ struct ProjectView: View {
     }
 
     var body: some View {
-        let rootItem = FileItem(path: path)
-
         NavigationSplitView {
             List(selection: $selection) {
-                OutlineGroup(rootItem, children: \.children) { item in
-                    Label(
-                        "\(item.description)",
-                        systemImage: item.children == nil ? "text.page" : "folder")
-                }
+                ProjectOutlineView()
             }
             .navigationTitle("Sidebar")
         } detail: {
