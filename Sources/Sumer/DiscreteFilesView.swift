@@ -1,19 +1,12 @@
 import SwiftUI
 
 struct DiscreteFilesView: View {
-    var path: URL?
-
-    init() {
-        self.init(nil)
-    }
-    init(_ path: URL?) {
-        self.path = path
-    }
+    var paths: [URL]
 
     var body: some View {
         Text("Discrete files view !!")
-        if let path = path {
-            Text("You are editing " + path.absoluteString + "!")
+        if !paths.isEmpty {
+            Text("You are editing " + paths.map({ $0.lastPathComponent }).joined(separator: ", "))
         }
     }
 }
