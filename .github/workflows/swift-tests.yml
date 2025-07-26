@@ -16,10 +16,9 @@ jobs:
           installer -pkg swiftly.pkg -target CurrentUserHomeDirectory
           ~/.swiftly/bin/swiftly init --quiet-shell-followup --skip-install
           . "${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/env.sh"
-          swiftly install 6.2-snapshot
-          hash -r
+          swiftly install --use 6.2-snapshot
 
       - name: Run tests
         run: |
-          swiftly use 6.2
+          . "${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/env.sh"
           swift test
