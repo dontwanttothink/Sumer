@@ -92,15 +92,15 @@ class FileItem: Identifiable {
         } catch {
             let nsError = error as NSError
             if let posixCode = nsError.posixCode {
+                print(posixCode == ENOENT)
                 if posixCode == ENOTDIR {
                     latestChildren = .NotSupported
-                    return
                 } else if posixCode == ENOENT {
                     latestChildren = .Failed(FileItemError.NoEntry)
                 }
+            } else {
+                latestChildren = .Failed(error)
             }
-
-            latestChildren = .Failed(error)
         }
     }
 }

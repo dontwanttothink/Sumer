@@ -39,3 +39,8 @@ struct ProjectOutlineGroup: View {
         }
     }
 }
+
+//Text("Double-click me")
+//    .onTapGesture(count: 2) {
+//        print("Double-click detected")
+//    }

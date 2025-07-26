@@ -5,28 +5,36 @@ import Testing
 
 @Suite("Handles .children updates correctly")
 struct ChildrenAssignment {
-    @Test(".updateChildren() doesn't fail if item is a file")
+    @Test(
+        "`.children` is set to FileItem.ChildrenState.NotSupported if the FileItem represents a file"
+    )
     func initializeWithFile()
         throws
     {
         let fileURL = URL(fileURLWithPath: #filePath)
         let item = FileItem(root: fileURL)
-
-        try item.updateChildren()
-        #expect(item.children.count == 0)
+        #expect(
+            {
+                guard case .NotSupported = item.children else { return false }
+                return true
+            }())
     }
 
     @Test(".updateChildren() fails if the item does not exist")
-    func initializeWithNonExistentItem() throws {
+    func initializeWithNonExistentItem() {
         let fm = FileManager.default
         let nonExistentURL = fm.temporaryDirectory.appending(
             component:
                 UUID().uuidString)
         let item = FileItem(root: nonExistentURL)
-
-        #expect(throws: FileItemError.NoEntry) {
-            try item.updateChildren()
-        }
+        #expect(
+            {
+                debugPrint(item.children)
+                if case .Failed(FileItemError.NoEntry) = item.children {
+                    return true
+                }
+                return false
+            }())
     }
 
     @Test(".updateChildren() sets .children correctly") func initializeWithDirectory()
@@ -38,23 +46,27 @@ struct ChildrenAssignment {
                 UUID().uuidString)
         try fm.createDirectory(
             at: tempDir, withIntermediateDirectories: true, attributes: nil)
-
+        
         let filenames = ["file1.txt", "file2.txt", "file3.txt"]
         for filename in filenames {
             let fileURL = tempDir.appendingPathComponent(filename)
-
+            
             let contents = Data()
             try contents.write(to: fileURL)
         }
-
+        
         let item = FileItem(root: tempDir)
-        try item.updateChildren()
-
-        #expect(item.children.count == 3)
-        for (expected, found) in zip(filenames, item.children.map({ $0.name }).sorted()) {
-            #expect(expected == found)
+        
+        guard case let .Supported(childItems) = item.children else {
+            #expect(Bool(false))
+            return
         }
-        try FileManager.default.removeItem(at: tempDir)
+        
+        for (expected, provided) in zip(childItems.map {$0.name}.sorted(), filenames) {
+            #expect(expected == provided)
+        }
+        
+        try fm.removeItem(at: tempDir)
     }
 
     @Test(
@@ -64,9 +76,12 @@ struct ChildrenAssignment {
 
         withKnownIssue {
             let item = FileItem(root: nonExistent)
-            #expect(throws: FileItemError.NoEntry) {
-                try item.updateChildren()
-            }
+            #expect({
+                if case .Failed = item.children {
+                    return true
+                }
+                return false
+            }())
         }
     }
 }
