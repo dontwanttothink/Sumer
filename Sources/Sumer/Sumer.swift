@@ -31,8 +31,13 @@ struct SumerApp: App {
     }
 
     static func open(filesOrDocuments: [URL], _ openWindow: OpenWindowAction) {
-        // update with logic to identify file system hierarchy
-        // replace empty windows
+        // if various files are given with the same direct ancestor, open those
+        // files in a project with the sidebar collapsed
+
+        // open (the rest) of the files separately (or, in the future, in a
+        // project-less tabbed view)
+
+        // open a project for each folder
 
         for fileOrDocument in filesOrDocuments {
             openWindow(value: fileOrDocument)
