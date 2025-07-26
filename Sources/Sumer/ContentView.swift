@@ -1,11 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var path: URL?
-
-    init(path: URL?) {
-        self.path = path
-    }
+    @Binding var path: URL?
 
     var body: some View {
         if let path {

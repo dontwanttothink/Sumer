@@ -1,8 +1,12 @@
 import Foundation
 
-struct FileItemIdentifier {
+struct FileItemIdentifier: Identifiable {
     private var bookmarkData: Data?
     private(set) var path: URL
+
+    var id: URL {
+        path
+    }
 
     init(path: URL) {
         self.path = path

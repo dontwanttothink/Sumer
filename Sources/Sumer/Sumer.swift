@@ -14,7 +14,12 @@ struct SumerApp: App {
 
     var body: some Scene {
         WindowGroup(id: "editor", for: URL.self) { $url in
-            ContentView(path: url)
+            let contentView = ContentView(path: $url)
+            if let url {
+                contentView.navigationTitle(url.lastPathComponent)
+            } else {
+                contentView
+            }
         }
         .commands {
             SumerCommands()
