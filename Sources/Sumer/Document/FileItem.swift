@@ -17,9 +17,8 @@ enum FileItemError: Error {
     case NoEntry
 }
 
-/// Represents an item in the file system. Internally, this uses a `Bookmark`
-/// provided by the system, if available, to follow the item even if it is
-/// moved or renamed.
+/// Represents an item in the file system. Internally, this uses a `Bookmark`,
+/// if available, to follow the item even if it is moved or renamed.
 ///
 /// Calls to instance methods may not work unless `.refreshLocation()` is
 /// called after an item is moved or renamed.
