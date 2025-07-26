@@ -92,7 +92,6 @@ class FileItem: Identifiable {
         } catch {
             let nsError = error as NSError
             if let posixCode = nsError.posixCode {
-                print(posixCode == ENOENT)
                 if posixCode == ENOTDIR {
                     latestChildren = .NotSupported
                 } else if posixCode == ENOENT {

@@ -29,7 +29,6 @@ struct ChildrenAssignment {
         let item = FileItem(root: nonExistentURL)
         #expect(
             {
-                debugPrint(item.children)
                 if case .Failed(FileItemError.NoEntry) = item.children {
                     return true
                 }
@@ -46,26 +45,26 @@ struct ChildrenAssignment {
                 UUID().uuidString)
         try fm.createDirectory(
             at: tempDir, withIntermediateDirectories: true, attributes: nil)
-        
+
         let filenames = ["file1.txt", "file2.txt", "file3.txt"]
         for filename in filenames {
             let fileURL = tempDir.appendingPathComponent(filename)
-            
+
             let contents = Data()
             try contents.write(to: fileURL)
         }
-        
+
         let item = FileItem(root: tempDir)
-        
-        guard case let .Supported(childItems) = item.children else {
+
+        guard case .Supported(let childItems) = item.children else {
             #expect(Bool(false))
             return
         }
-        
-        for (expected, provided) in zip(childItems.map {$0.name}.sorted(), filenames) {
+
+        for (expected, provided) in zip(childItems.map { $0.name }.sorted(), filenames) {
             #expect(expected == provided)
         }
-        
+
         try fm.removeItem(at: tempDir)
     }
 
@@ -76,12 +75,13 @@ struct ChildrenAssignment {
 
         withKnownIssue {
             let item = FileItem(root: nonExistent)
-            #expect({
-                if case .Failed = item.children {
-                    return true
-                }
-                return false
-            }())
+            #expect(
+                {
+                    if case .Failed = item.children {
+                        return true
+                    }
+                    return false
+                }())
         }
     }
 }
