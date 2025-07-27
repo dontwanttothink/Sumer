@@ -6,3 +6,6 @@ build:
 
 run:
     swift run
+
+format:
+    swift format -ri .
