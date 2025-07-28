@@ -1,24 +1,39 @@
 import SwiftUI
 
 struct ProjectView: View {
-	private let path: URL
-	@State private var selection: Set<URL> = []
+	private let root: TrackedDirectory?
+	private let error: (any Error)?
+	@State private var selection: Set<UUID> = []
 
 	init(_ path: URL) {
-		self.path = path
+		do {
+			self.root = try TrackedDirectory(path: path)
+			self.error = nil
+		} catch {
+			self.error = error
+			self.root = nil
+		}
 	}
 
 	var body: some View {
-		NavigationSplitView {
-			ProjectOutlineGroup(withRoot: self.path, selection: $selection)
-				.navigationTitle("Sidebar")
-		} detail: {
-			if selection.count > 0 {
-				Text("Selected something")
-			} else {
-				Text("No selection")
+		if let root {
+			NavigationSplitView {
+				ProjectOutlineGroup(withRoot: root, selection: $selection)
+					.navigationTitle("Sidebar")
+			} detail: {
+				if selection.count > 0 {
+					Text("Selected something")
+				} else {
+					Text("No selection")
+				}
+				Text("You are editing " + root.path.absoluteString)
 			}
-			Text("You are editing " + path.absoluteString)
+		} else {
+			if let error {
+				Text("Something went wrong: \(error.localizedDescription)")
+			} else {
+				Text("Something went wrong.")
+			}
 		}
 	}
 }

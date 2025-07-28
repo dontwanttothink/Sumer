@@ -1,48 +1,58 @@
 import SwiftUI
 
-struct ProjectOutlineGroup: View {
-	let path: URL
-	private let fileItem: FileItem
-	@Binding var selection: Set<URL>
-
-	init(withRoot path: URL, selection: Binding<Set<URL>>) {
-		self.path = path
-		self.fileItem = FileItem(root: path)
-		self._selection = selection
+func getSystemImage(for fileItem: TrackedDirectory.FileItem) -> String {
+	return switch fileItem {
+	case .NonLeaf:
+		"folder"
+	case .Leaf:
+		"text.page"
 	}
+}
 
-	static func getSystemImage(for fileItem: FileItem) -> String {
-		return switch fileItem.children {
-		case .Supported:
-			"folder"
-		case .NotSupported:
-			"text.page"
-		case .Failed:
-			"exclamationmark.triangle.text.page"
-		}
-	}
+struct ProjectItemView: View {
+	var item: TrackedDirectory.FileItem
+	var level: Int = 0
 
 	var body: some View {
-		switch fileItem.children {
-		case .Supported(let items):
-			List(selection: $selection) {
-				OutlineGroup(items, children: \.simplifiedChildren) { item in
-					Label(
-						item.name,
-						systemImage: Self.getSystemImage(for: item))
+		let image = getSystemImage(for: item)
+
+		switch item {
+		case .Leaf(let leafItem):
+			Label(leafItem.path.lastPathComponent, systemImage: image)
+		case .NonLeaf(let nonLeafItem):
+			let expandedBinding = Binding(
+				get: { nonLeafItem.isExpanded },
+				set: { newValue in nonLeafItem.isExpanded = newValue })
+
+			DisclosureGroup(isExpanded: expandedBinding) {
+				if case .Available(let children) = nonLeafItem.children {
+					let items: [TrackedDirectory.FileItem] = Array(
+						children.values)
+					ForEach(items) { (item: TrackedDirectory.FileItem) in
+						ProjectItemView(item: item, level: level + 1)
+					}
 				}
+			} label: {
+				Label(nonLeafItem.path.lastPathComponent, systemImage: image)
 			}
-		default:
-			ZStack {
-				Color.clear  // force full-size layout
-				Text("Failed to load elements")
-			}
-			.frame(maxWidth: .infinity, maxHeight: .infinity)
 		}
 	}
 }
 
-//Text("Double-click me")
-//    .onTapGesture(count: 2) {
-//        print("Double-click detected")
-//    }
+struct ProjectOutlineGroup: View {
+	@State private var root: TrackedDirectory
+	@Binding var selection: Set<UUID>
+
+	init(withRoot directory: TrackedDirectory, selection: Binding<Set<UUID>>) {
+		self._selection = selection
+		self.root = directory
+	}
+
+	var body: some View {
+		List(selection: $selection) {
+			ForEach(root.items) { (item: TrackedDirectory.FileItem) in
+				ProjectItemView(item: item)
+			}
+		}
+	}
+}
