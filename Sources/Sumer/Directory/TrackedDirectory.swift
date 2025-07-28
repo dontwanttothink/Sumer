@@ -2,6 +2,8 @@ import SwiftUI
 
 @Observable class TrackedDirectory {
 	private(set) var path: URL
+	private var fd: Int32
+
 	private(set) var items: [FileItem] = []
 	fileprivate var identities: [URL: UUID] = [:]
 
@@ -92,23 +94,48 @@ import SwiftUI
 		}
 	}
 
+	private struct FSEvent {
+		let id: FSEventStreamEventId
+		let flags: FSEventStreamEventFlags
+		let url: URL
+	}
+
 	private var fsEventStream: FSEventStreamBox!
 	private let fsEventStreamCallback: FSEventStreamCallback = {
 		(
 			streamRef: ConstFSEventStreamRef,
 			clientCallbackInfo: UnsafeMutableRawPointer?,
-			eventsCount: Int, eventPaths: UnsafeMutableRawPointer,
+			eventsCount: Int,
+			eventPaths: UnsafeMutableRawPointer,
 			eventFlags: UnsafePointer<FSEventStreamEventFlags>,
 			eventIDs: UnsafePointer<FSEventStreamEventId>
 		) in
 
 		let info = clientCallbackInfo!
-		let trackedDirectory = Unmanaged<TrackedDirectory>.fromOpaque(info)
+		let tracked = Unmanaged<TrackedDirectory>.fromOpaque(info)
 			.takeUnretainedValue()
 
+		let flags = Array(UnsafeBufferPointer(start: eventFlags, count: eventsCount))
+		let ids = Array(UnsafeBufferPointer(start: eventIDs, count: eventsCount))
+
+		let pathsPointer = UnsafeRawPointer(eventPaths).assumingMemoryBound(
+			to: UnsafePointer<CChar>.self)
+		let pathsBuffer = UnsafeBufferPointer(start: pathsPointer, count: eventsCount)
+		let eventURLs = pathsBuffer.map { URL(fileURLWithPath: String(cString: $0)) }
+
+		tracked.respondTo(
+			fsEvents: (0..<eventsCount).map { i in
+				FSEvent(id: ids[i], flags: flags[i], url: eventURLs[i])
+			}
+		)
 	}
 
-	init(path: URL) {
+	struct InitError: Error {
+		let code: Int32
+		var message: String
+	}
+
+	init(path: URL) throws {
 		self.path = path
 
 		// When we are notified that a new file is added, we check whether
@@ -125,25 +152,41 @@ import SwiftUI
 		// property without the item. We make sure to get rid of the item's
 		// entry in the `identities` dictionary, so that we don't leak memory.
 
-		// When we are notified that a file is moved or renamed, we check
-		// whether the new and old parents (which may be the same) exist in our
-		// tree. If they do, we invalidate (if parent is collapsed) or update
-		// (if parent is expanded) the `.children` properties of each. We remove
-		// the item from the old parent or invalidate its `.children`. We keep
-		// a temporary copy of the old item's UUID, but delete its identity from
-		// the `identities` dictionary. Then, if the new parent is expanded,
-		// we add a new item to its `.children` and register it in the
-		// `identities` dictionary with the old item's UUID. If the new parent
-		// is not expanded, we invalidate its `.children` and do not create any
-		// new item or identity.
+		// Moved or renamed files:
+		//
+		// The following applies if we hold a file descriptor for the moved or
+		// renamed file:
+		//
+		//	We check whether the new and old parents (which may be the same)
+		//	exist in our tree. If they do, we invalidate (if parent is collapsed)
+		//	or update (if parent is expanded) the `.children` properties of each.
+		//	We remove the item from the old parent or invalidate its `.children`.
+		//	We keep a temporary copy of the old item's UUID, but delete its
+		//	identity from the `identities` dictionary. Then, if the new parent is
+		//	expanded, we add a new item to its `.children` and register it in the
+		//	`identities` dictionary with the old item's UUID. If the new parent
+		//	is not expanded, we invalidate its `.children` and do not create any
+		//	new item or identity.
+		//
+		// Otherwise, we treat the event as a delete-create pair and the
+		// continuity of the item's identity is broken.
 
 		// "If you want to track the current location of a directory, it is best
 		// to open the directory before creating the stream so that you have a
 		// file descriptor for it and can issue an F_GETPATH fcntl() to find the
 		// current path."
+		// https://developer.apple.com/documentation/coreservices/1455376-fseventstreamcreateflags/kfseventstreamcreateflagwatchroot
 		//
 		// Open directory at BSD-level, keep file descriptor, recreate
 		// FSEventStream with new path using fcntl()
+
+		// No identity-tracking is attempted for folders.
+
+		self.fd = open(path.path, O_EVTONLY | O_RDONLY)
+		if fd == -1 {
+			let code = errno
+			throw InitError(code: code, message: String(cString: strerror(code)))
+		}
 
 		self.fsEventStream = FSEventStreamBox(
 			info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
@@ -151,13 +194,21 @@ import SwiftUI
 	}
 
 	deinit {
+		close(self.fd)
 		// close file for root
+	}
+
+	private func respondTo(fsEvents: [FSEvent]) {
+		for event in fsEvents {
+			// handle…
+		}
 	}
 
 	enum FileItem: Identifiable {
 		case Leaf(LeafItem)
 		case NonLeaf(NonLeafItem)
 
+		/// A unique identifier for the
 		var id: UUID {
 			switch self {
 			case .Leaf(let item):
