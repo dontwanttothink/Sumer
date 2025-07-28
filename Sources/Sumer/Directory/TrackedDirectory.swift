@@ -1,11 +1,6 @@
 import SwiftUI
 
 @Observable class TrackedDirectory {
-	private(set) var path: URL
-	private var fd: Int32
-
-	private(set) var items: [FileItem] = []
-	fileprivate var identities: [URL: UUID] = [:]
 
 	final class FSEventStreamBox {
 		private let stream: FSEventStreamRef
@@ -133,24 +128,54 @@ import SwiftUI
 	struct InitError: Error {
 		let code: Int32
 		var message: String
+		var localizedDescription: String {
+			message
+		}
 	}
+
+	private(set) var path: URL
+	private var fd: Int32
+
+	private(set) var items: [FileItem] = []
 
 	init(path: URL) throws {
 		self.path = path
+
+		self.fd = open(path.path, O_EVTONLY | O_RDONLY)
+		if fd == -1 {
+			let code = errno
+			throw InitError(code: code, message: String(cString: strerror(code)))
+		}
+
+		let fm = FileManager.default
+		self.items = try fm.contentsOfDirectory(
+			at: path, includingPropertiesForKeys: [.isDirectoryKey]
+		).map { url in
+			let resourceValues = try url.resourceValues(forKeys: [
+				.isDirectoryKey
+			])
+			let isDirectory = resourceValues.isDirectory ?? false
+
+			if isDirectory {
+				return FileItem.NonLeaf(
+					NonLeafItem(path: url, trackedDirectory: self))
+			} else {
+				return FileItem.Leaf(LeafItem(path: url, trackedDirectory: self))
+			}
+		}
 
 		// When we are notified that a new file is added, we check whether
 		// its parent exists in our tree. If it does, we invalidate (if
 		// parent is collapsed) or update (if parent is expanded) its
 		// `.children` property with the new item. Invalidating the `.children`
 		// of a collapsed item  stops us from needlessly updating any state
-		// deeper in the tree. When creating a new item, we generate a UUID and
-		// register it in the  `identities` dictionary.
+		// deeper in the tree. When creating a new item, we generate a UUID
+		// through the `FileItem` constructor.
 
 		// When we are notified that a file is deleted, we check whether its
 		// parent exists in our tree. If it does, we invalidate (if
 		// collapsed) or update (if parent is expanded) its `.children`
-		// property without the item. We make sure to get rid of the item's
-		// entry in the `identities` dictionary, so that we don't leak memory.
+		// property without the item.
 
 		// Moved or renamed files:
 		//
@@ -163,10 +188,10 @@ import SwiftUI
 		//	We remove the item from the old parent or invalidate its `.children`.
 		//	We keep a temporary copy of the old item's UUID, but delete its
 		//	identity from the `identities` dictionary. Then, if the new parent is
-		//	expanded, we add a new item to its `.children` and register it in the
-		//	`identities` dictionary with the old item's UUID. If the new parent
-		//	is not expanded, we invalidate its `.children` and do not create any
-		//	new item or identity.
+		//	expanded, we add a new item to its `.children` initialize it with
+		//	the old item's UUID. If the new parent is not expanded, we
+		//	invalidate its `.children` and do not create any	new item or
+		//	identity.
 		//
 		// Otherwise, we treat the event as a delete-create pair and the
 		// continuity of the item's identity is broken.
@@ -180,13 +205,7 @@ import SwiftUI
 		// Open directory at BSD-level, keep file descriptor, recreate
 		// FSEventStream with new path using fcntl()
 
-		// No identity-tracking is attempted for folders.
-
-		self.fd = open(path.path, O_EVTONLY | O_RDONLY)
-		if fd == -1 {
-			let code = errno
-			throw InitError(code: code, message: String(cString: strerror(code)))
-		}
+		// No identity-tracking is attempted for folders, except the root.
 
 		self.fsEventStream = FSEventStreamBox(
 			info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
@@ -195,12 +214,24 @@ import SwiftUI
 
 	deinit {
 		close(self.fd)
-		// close file for root
 	}
 
 	private func respondTo(fsEvents: [FSEvent]) {
 		for event in fsEvents {
-			// handle…
+			print("Received a file system event for", event.url.path)
+			if Int(event.flags) & kFSEventStreamEventFlagItemCreated != 0 {
+				print("item created")
+			} else if Int(event.flags) & kFSEventStreamEventFlagItemRemoved != 0 {
+				print("item removed")
+			} else if Int(event.flags) & kFSEventStreamEventFlagItemRenamed != 0 {
+				print("item renamed")
+			}
+
+			print("(flags \(String(format: "%02x", event.flags)))")
+
+			if Int(event.flags) & kFSEventStreamEventFlagRootChanged != 0 {
+				print("!!!!!!! root changed; use fd")
+			}
 		}
 	}
 
@@ -208,7 +239,7 @@ import SwiftUI
 		case Leaf(LeafItem)
 		case NonLeaf(NonLeafItem)
 
-		/// A unique identifier for the
+		/// A unique identifier for the `FileItem`.
 		var id: UUID {
 			switch self {
 			case .Leaf(let item):
@@ -217,25 +248,36 @@ import SwiftUI
 				return item.id
 			}
 		}
+
+		var path: URL {
+			switch self {
+			case .Leaf(let item):
+				return item.path
+			case .NonLeaf(let item):
+				return item.path
+			}
+		}
 	}
 
 	@Observable class LeafItem: Identifiable {
+		let id: UUID
 		private var trackedDirectory: TrackedDirectory
 		fileprivate(set) var path: URL
 
-		init(path: URL, trackedDirectory: TrackedDirectory) {
+		convenience init(path: URL, trackedDirectory: TrackedDirectory) {
+			self.init(path: path, trackedDirectory: trackedDirectory, id: UUID())
+		}
+		init(path: URL, trackedDirectory: TrackedDirectory, id: UUID) {
 			self.path = path
 			self.trackedDirectory = trackedDirectory
-		}
-
-		var id: UUID {
-			trackedDirectory.identities[path]!
+			self.id = id
 		}
 	}
 
 	@Observable class NonLeafItem: Identifiable {
 		private var trackedDirectory: TrackedDirectory
 		var isExpanded = false
+		let id: UUID = UUID()
 		fileprivate(set) var path: URL
 
 		enum ChildrenState {
@@ -261,6 +303,11 @@ import SwiftUI
 					if isDirectory {
 						childrenMap[url] = FileItem.NonLeaf(
 							NonLeafItem(
+								path: url,
+								trackedDirectory: trackedDirectory))
+					} else {
+						childrenMap[url] = FileItem.Leaf(
+							LeafItem(
 								path: url,
 								trackedDirectory: trackedDirectory))
 					}
@@ -305,10 +352,6 @@ import SwiftUI
 		init(path: URL, trackedDirectory: TrackedDirectory, ) {
 			self.path = path
 			self.trackedDirectory = trackedDirectory
-		}
-
-		var id: UUID {
-			trackedDirectory.identities[path]!
 		}
 	}
 }
