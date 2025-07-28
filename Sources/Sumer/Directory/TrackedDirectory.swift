@@ -5,7 +5,108 @@ import SwiftUI
 	private(set) var items: [FileItem] = []
 	fileprivate var identities: [URL: UUID] = [:]
 
-	private let fsEventStream: FSEventStreamRef
+	final class FSEventStreamBox {
+		private let stream: FSEventStreamRef
+		private var context: UnsafeMutablePointer<FSEventStreamContext>
+
+		init(
+			info: UnsafeMutableRawPointer?, callback: FSEventStreamCallback,
+			pathsToWatch: [URL]
+		) {
+			self.context = UnsafeMutablePointer<FSEventStreamContext>.allocate(
+				capacity: 1)
+			context.initialize(
+				to: FSEventStreamContext(
+					version: CFIndex(0),
+
+					// Memory correctness:
+					//
+					// Below, 'us' is the `TrackedDirectory` instance.
+					//
+					// - We don't want Core Foundation to try to retain us,
+					// because that would cause a reference cycle. We try to
+					// stop that by passing `nil` to the `retain` and `release`
+					// callbacks (and hopefully succeed).
+					//
+					// - The FSEventStream must never outlive us. Because we
+					// own the FSEventStream and should KILL it as we are
+					// deinitialized through normal Swift memory management,
+					// everything will be OK.
+					info: info,
+					retain: nil, release: nil, copyDescription: nil
+				))
+
+			let pathsAsCFString: [CFString] = pathsToWatch.map { $0.path as CFString }
+
+			// Memory correctness: see below
+			var rawPointersToPathsAsCFString: [UnsafeRawPointer?] = pathsAsCFString.map
+			{
+				UnsafeRawPointer(Unmanaged.passUnretained($0).toOpaque())
+			}
+
+			// "The retain callback is used within this function, for example,
+			// to retain all of the new values from the values C array."
+			//
+			// Later, "If the collection contains only CFType objects, then pass
+			// a pointer to kCFTypeArrayCallBacks (&kCFTypeArrayCallBacks) to
+			// use the default callback functions."
+			//
+			// https://developer.apple.com/documentation/corefoundation/cfarraycreate(_:_:_:_:)
+
+			let pathsToWatch =
+				rawPointersToPathsAsCFString.withUnsafeMutableBufferPointer {
+					buffer in
+					withUnsafePointer(to: kCFTypeArrayCallBacks) {
+						callbacksPtr in
+						CFArrayCreate(
+							kCFAllocatorDefault,
+							buffer.baseAddress,
+							buffer.count,
+							callbacksPtr
+						)!
+					}
+				}
+
+			self.stream = FSEventStreamCreate(
+				kCFAllocatorDefault, callback, context, pathsToWatch,
+				FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+				CFTimeInterval(1.0),
+				FSEventStreamCreateFlags(
+					kFSEventStreamCreateFlagNoDefer
+						| kFSEventStreamCreateFlagWatchRoot
+						| kFSEventStreamCreateFlagFileEvents))!
+
+			// We need to modify an Observable, and the tree operations are
+			// (supposed to be) fast. Thus, the callback is called on the main
+			// thread.
+			FSEventStreamSetDispatchQueue(stream, DispatchQueue.main)
+			FSEventStreamStart(stream)
+		}
+		deinit {
+			FSEventStreamStop(stream)
+			FSEventStreamInvalidate(stream)
+			FSEventStreamRelease(stream)
+
+			context.deinitialize(count: 1)
+			context.deallocate()
+		}
+	}
+
+	private var fsEventStream: FSEventStreamBox!
+	private let fsEventStreamCallback: FSEventStreamCallback = {
+		(
+			streamRef: ConstFSEventStreamRef,
+			clientCallbackInfo: UnsafeMutableRawPointer?,
+			eventsCount: Int, eventPaths: UnsafeMutableRawPointer,
+			eventFlags: UnsafePointer<FSEventStreamEventFlags>,
+			eventIDs: UnsafePointer<FSEventStreamEventId>
+		) in
+
+		let info = clientCallbackInfo!
+		let trackedDirectory = Unmanaged<TrackedDirectory>.fromOpaque(info)
+			.takeUnretainedValue()
+
+	}
 
 	init(path: URL) {
 		self.path = path
@@ -36,8 +137,6 @@ import SwiftUI
 		// is not expanded, we invalidate its `.children` and do not create any
 		// new item or identity.
 
-		let pathsToWatch: CFArray
-
 		// "If you want to track the current location of a directory, it is best
 		// to open the directory before creating the stream so that you have a
 		// file descriptor for it and can issue an F_GETPATH fcntl() to find the
@@ -46,22 +145,14 @@ import SwiftUI
 		// Open directory at BSD-level, keep file descriptor, recreate
 		// FSEventStream with new path using fcntl()
 
-		let fsEventCallback
-
-		self.fsEventStream = FSEventStreamCreate(
-			kCFAllocatorDefault, fsEventCallback, nil, pathsToWatch,
-			FSEventStreamEventId(kFSEventStreamEventIdSinceNow), CFTimeInterval(1.0),
-			FSEventStreamCreateFlags(
-				kFSEventStreamCreateFlagNoDefer | kFSEventStreamCreateFlagWatchRoot
-					| kFSEventStreamCreateFlagFileEvents))!
+		self.fsEventStream = FSEventStreamBox(
+			info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
+			callback: fsEventStreamCallback, pathsToWatch: [path])
 	}
 
-	func handleEvent(
-		streamRef: ConstFSEventStreamRef, clientCallbackInfo: UnsafeMutableRawPointer?,
-		eventsCount: Int, eventPaths: UnsafeMutableRawPointer,
-		eventFlags: UnsafePointer<FSEventStreamEventFlags>,
-		eventIDs: UnsafePointer<FSEventStreamEventId>
-	) {}
+	deinit {
+		// close file for root
+	}
 
 	enum FileItem: Identifiable {
 		case Leaf(LeafItem)
@@ -143,10 +234,11 @@ import SwiftUI
 			return latestChildren
 		}
 
+		/// The latest known state of the `NonLeafItem`'s children.
+		///
 		/// This property is accurate if available. It is always available while
 		/// the item is expanded. If the item is not expanded, it may be
 		/// unavailable until the item is expanded again.
-		///
 		///
 		/// **Details**
 		///
@@ -155,7 +247,8 @@ import SwiftUI
 		///
 		/// It may also be available even if the item is collapsed, in which
 		/// case the data is not stale. If a file system event that makes this
-		/// property inaccurate occurs, the property is set back to `nil`.
+		/// property inaccurate occurs, the property is set back to
+		/// `.Unavailable`.
 		fileprivate(set) var latestChildren: ChildrenState = .Unavailable
 
 		init(path: URL, trackedDirectory: TrackedDirectory, ) {
