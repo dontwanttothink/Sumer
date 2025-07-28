@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// A `TrackedDirectory` connects a `ProjectView` to the file system.
 @Observable class TrackedDirectory {
 
 	final class FSEventStreamBox {
