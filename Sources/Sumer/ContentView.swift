@@ -1,15 +1,17 @@
 import SwiftUI
 
 struct ContentView: View {
-	@Binding var path: URL?
+	/// The path used to instantiate this `ContentView`. The file or folder at
+	/// this location may have since been removed or renamed.
+	let initialPath: URL?
 
 	var body: some View {
-		if let path {
-			let isDirectory = try? path.isDirectory
+		if let initialPath {
+			let isDirectory = try? initialPath.isDirectory
 			if isDirectory != nil && isDirectory == true {
-				ProjectView(path)
+				ProjectView(initialPath)
 			} else {
-				DiscreteFilesView(paths: [path])
+				DiscreteFilesView(paths: [initialPath])
 			}
 		} else {
 			DiscreteFilesView(paths: [])
