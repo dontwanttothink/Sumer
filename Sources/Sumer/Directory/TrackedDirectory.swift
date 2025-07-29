@@ -137,41 +137,23 @@ import SwiftUI
 	private(set) var path: URL
 	private var fd: Int32
 
-	private(set) var items: [FileItem] = []
+	private var root: NonLeafItem
+	var items: [FileItem]? {
+		if case .Available(let items) = root.children {
+			return Array(items.values)
+		}
+		return nil
+	}
 
 	init(path: URL) throws {
-		self.path = path
+		self.path = path.standardized
+		self.root = NonLeafItem.init(path: path)
 
 		self.fd = open(path.path, O_EVTONLY | O_RDONLY)
 		if fd == -1 {
 			let code = errno
 			throw InitError(code: code, message: String(cString: strerror(code)))
 		}
-
-		let fm = FileManager.default
-		self.items = try fm.contentsOfDirectory(
-			at: path, includingPropertiesForKeys: [.isDirectoryKey]
-		).map { url in
-			let resourceValues = try url.resourceValues(forKeys: [
-				.isDirectoryKey
-			])
-			let isDirectory = resourceValues.isDirectory ?? false
-
-			if isDirectory {
-				return FileItem.NonLeaf(
-					NonLeafItem(path: url, trackedDirectory: self))
-			} else {
-				return FileItem.Leaf(LeafItem(path: url, trackedDirectory: self))
-			}
-		}
-
-		// When we are notified that a new file is added, we check whether
-		// its parent exists in our tree. If it does, we invalidate (if
-		// parent is collapsed) or update (if parent is expanded) its
-		// `.children` property with the new item. Invalidating the `.children`
-		// of a collapsed item  stops us from needlessly updating any state
-		// deeper in the tree. When creating a new item, we generate a UUID
-		// through the `FileItem` constructor.
 
 		// When we are notified that a file is deleted, we check whether its
 		// parent exists in our tree. If it does, we invalidate (if
@@ -220,8 +202,24 @@ import SwiftUI
 	private func respondTo(fsEvents: [FSEvent]) {
 		for event in fsEvents {
 			print("Received a file system event for", event.url.path)
+
+			let baseComponents = path.pathComponents
+			let targetComponents = event.url.standardized.pathComponents
+
+			guard
+				baseComponents.count <= targetComponents.count
+					&& baseComponents.starts(with: baseComponents)
+			else {
+				print(
+					"sumer: warning: skipped an event for", event.url.path,
+					"because it couldn't be resolved relative to", path.path)
+				continue
+			}
+
+			let remaining = targetComponents.dropFirst(baseComponents.count)
+
 			if Int(event.flags) & kFSEventStreamEventFlagItemCreated != 0 {
-				print("item created")
+				respondToCreated(components: remaining)
 			} else if Int(event.flags) & kFSEventStreamEventFlagItemRemoved != 0 {
 				print("item removed")
 			} else if Int(event.flags) & kFSEventStreamEventFlagItemRenamed != 0 {
@@ -234,6 +232,69 @@ import SwiftUI
 				print("!!!!!!! root changed; use fd")
 			}
 		}
+	}
+
+	private func respondToCreated<C: BidirectionalCollection>(components: C)
+	where C.Element == String {
+		var current = self.root
+
+		for component in components.dropLast() {
+			if case .Unavailable = current.latestChildren {
+				// We should stop because we're not tracking this deep
+				// into the tree.
+				return
+			}
+
+			guard case .Available(var children) = current.latestChildren
+			else {
+				// we aren't responsible for errored-out
+				// `ChildrenState`s —they get re-tried whenever
+				// `.children` is accessed
+				return
+			}
+
+			if children[component] == nil {
+				children[component] = .NonLeaf(
+					NonLeafItem(
+						path: current.path.appending(component: component)))
+			}
+			let next = children[component]!
+
+			if case .NonLeaf(let nextNonLeaf) = next {
+				current = nextNonLeaf
+			} else {
+				// A file was created under a path where we thought
+				// a file —and not a folder— existed.
+				current.latestChildren =
+					current.fetchChildren()
+				// This makes me want to change my mind about this whole
+				// approach :(
+				//
+				// It might be more robust to keep expansion state by filename
+				// and not attempt these surgical changes. Honestly sounds like
+				// a good idea
+			}
+		}
+		if let last = components.last {
+
+		}
+
+		// When we are notified that a new file is added, we check whether
+		// its parent exists in our tree.
+		//
+		// If it does, we invalidate (if
+		// parent is collapsed) or update (if parent is expanded) its
+		// `.children` property with the new item. Invalidating the `.children`
+		// of a collapsed item  stops us from needlessly updating any state
+		// deeper in the tree. When creating a new item, we generate a UUID
+		// through the `FileItem` constructor.
+		//
+		// If it doesn't, we instead follow the same logic for the parent
+		// directories of the new file: starting from the uppermost ones, we
+		// ensure that each either exists in its parent or that its parent is
+		// invalidated due to the change. The representation for the file itself
+		// is never created, because the new file is hidden in the UI and is not
+		// being tracked in this case.
 	}
 
 	enum FileItem: Identifiable {
@@ -262,21 +323,18 @@ import SwiftUI
 
 	@Observable class LeafItem: Identifiable {
 		let id: UUID
-		private var trackedDirectory: TrackedDirectory
 		fileprivate(set) var path: URL
 
-		convenience init(path: URL, trackedDirectory: TrackedDirectory) {
-			self.init(path: path, trackedDirectory: trackedDirectory, id: UUID())
+		convenience init(path: URL) {
+			self.init(path: path, id: UUID())
 		}
-		init(path: URL, trackedDirectory: TrackedDirectory, id: UUID) {
+		init(path: URL, id: UUID) {
 			self.path = path
-			self.trackedDirectory = trackedDirectory
 			self.id = id
 		}
 	}
 
 	@Observable class NonLeafItem: Identifiable {
-		private var trackedDirectory: TrackedDirectory
 		var isExpanded = false
 		let id: UUID = UUID()
 		fileprivate(set) var path: URL
@@ -284,17 +342,20 @@ import SwiftUI
 		enum ChildrenState {
 			/// The item is collapsed
 			case Unavailable
-			case Available([URL: FileItem])
+
+			/// The wrapped `Dictionary` includes the `NonLeafItem`'s children,
+			/// mapped by their path's final component (their name).
+			case Available([String: FileItem])
 			case Failed(Error)
 		}
 
-		private func fetchChildren() -> ChildrenState {
+		fileprivate func fetchChildren() -> ChildrenState {
 			let fm = FileManager.default
 			do {
 				let contents = try fm.contentsOfDirectory(
 					at: path, includingPropertiesForKeys: [.isDirectoryKey])
 
-				var childrenMap: [URL: FileItem] = [:]
+				var childrenMap: [String: FileItem] = [:]
 				for url in contents {
 					let resourceValues = try url.resourceValues(forKeys: [
 						.isDirectoryKey
@@ -302,15 +363,14 @@ import SwiftUI
 					let isDirectory = resourceValues.isDirectory ?? false
 
 					if isDirectory {
-						childrenMap[url] = FileItem.NonLeaf(
-							NonLeafItem(
-								path: url,
-								trackedDirectory: trackedDirectory))
+						childrenMap[url.lastPathComponent] =
+							FileItem.NonLeaf(
+								NonLeafItem(
+									path: url))
 					} else {
-						childrenMap[url] = FileItem.Leaf(
+						childrenMap[url.lastPathComponent] = FileItem.Leaf(
 							LeafItem(
-								path: url,
-								trackedDirectory: trackedDirectory))
+								path: url))
 					}
 				}
 
@@ -348,11 +408,10 @@ import SwiftUI
 		/// case the data is not stale. If a file system event that makes this
 		/// property inaccurate occurs, the property is set back to
 		/// `.Unavailable`.
-		fileprivate(set) var latestChildren: ChildrenState = .Unavailable
+		fileprivate var latestChildren: ChildrenState = .Unavailable
 
-		init(path: URL, trackedDirectory: TrackedDirectory, ) {
+		init(path: URL) {
 			self.path = path
-			self.trackedDirectory = trackedDirectory
 		}
 	}
 }

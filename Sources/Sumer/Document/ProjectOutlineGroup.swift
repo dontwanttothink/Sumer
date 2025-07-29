@@ -50,7 +50,7 @@ struct ProjectOutlineGroup: View {
 
 	var body: some View {
 		List(selection: $selection) {
-			ForEach(root.items) { (item: TrackedDirectory.FileItem) in
+			ForEach(root.items ?? []) { (item: TrackedDirectory.FileItem) in
 				ProjectItemView(item: item)
 			}
 		}
