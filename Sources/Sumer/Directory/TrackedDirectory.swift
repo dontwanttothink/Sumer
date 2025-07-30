@@ -1,3 +1,4 @@
+import BridgedC
 import SwiftUI
 
 /// A `TrackedDirectory` connects a `ProjectView` to the file system.
@@ -7,8 +8,42 @@ import SwiftUI
 		private let stream: FSEventStreamRef
 		private var context: UnsafeMutablePointer<FSEventStreamContext>
 
+		private let callback: FSEventStreamCallback = {
+			(
+				streamRef: ConstFSEventStreamRef,
+				clientCallbackInfo: UnsafeMutableRawPointer?,
+				eventsCount: Int,
+				eventPaths: UnsafeMutableRawPointer,
+				eventFlags: UnsafePointer<FSEventStreamEventFlags>,
+				eventIDs: UnsafePointer<FSEventStreamEventId>
+			) in
+
+			let info = clientCallbackInfo!
+			let tracked = Unmanaged<TrackedDirectory>.fromOpaque(info)
+				.takeUnretainedValue()
+
+			let flags = Array(
+				UnsafeBufferPointer(start: eventFlags, count: eventsCount))
+			let ids = Array(UnsafeBufferPointer(start: eventIDs, count: eventsCount))
+
+			let pathsPointer = UnsafeRawPointer(eventPaths).assumingMemoryBound(
+				to: UnsafePointer<CChar>.self)
+			let pathsBuffer = UnsafeBufferPointer(
+				start: pathsPointer, count: eventsCount)
+			let eventURLs = pathsBuffer.map {
+				URL(fileURLWithPath: String(cString: $0))
+			}
+
+			for i in (0..<eventsCount) {
+				tracked.respondTo(
+					event: FSEvent(
+						id: ids[i], flags: flags[i], url: eventURLs[i]))
+
+			}
+		}
+
 		init(
-			info: UnsafeMutableRawPointer?, callback: FSEventStreamCallback,
+			info: UnsafeMutableRawPointer?,
 			pathsToWatch: [URL]
 		) {
 			self.context = UnsafeMutablePointer<FSEventStreamContext>.allocate(
@@ -97,33 +132,18 @@ import SwiftUI
 	}
 
 	private var fsEventStream: FSEventStreamBox!
-	private let fsEventStreamCallback: FSEventStreamCallback = {
-		(
-			streamRef: ConstFSEventStreamRef,
-			clientCallbackInfo: UnsafeMutableRawPointer?,
-			eventsCount: Int,
-			eventPaths: UnsafeMutableRawPointer,
-			eventFlags: UnsafePointer<FSEventStreamEventFlags>,
-			eventIDs: UnsafePointer<FSEventStreamEventId>
-		) in
 
-		let info = clientCallbackInfo!
-		let tracked = Unmanaged<TrackedDirectory>.fromOpaque(info)
-			.takeUnretainedValue()
+	private var path: URL {
+		self.root.path
+	}
+	private var root: FileItem
+	private var fd: Int32
 
-		let flags = Array(UnsafeBufferPointer(start: eventFlags, count: eventsCount))
-		let ids = Array(UnsafeBufferPointer(start: eventIDs, count: eventsCount))
-
-		let pathsPointer = UnsafeRawPointer(eventPaths).assumingMemoryBound(
-			to: UnsafePointer<CChar>.self)
-		let pathsBuffer = UnsafeBufferPointer(start: pathsPointer, count: eventsCount)
-		let eventURLs = pathsBuffer.map { URL(fileURLWithPath: String(cString: $0)) }
-
-		tracked.respondTo(
-			fsEvents: (0..<eventsCount).map { i in
-				FSEvent(id: ids[i], flags: flags[i], url: eventURLs[i])
-			}
-		)
+	var items: FileItem.Children.ChildrenState {
+		guard case .NonLeaf(let children) = root.kind else {
+			fatalError("The `TrackedDirectory`'s root is a leaf.")
+		}
+		return children.items
 	}
 
 	struct InitError: Error {
@@ -134,284 +154,206 @@ import SwiftUI
 		}
 	}
 
-	private(set) var path: URL
-	private var fd: Int32
-
-	private var root: NonLeafItem
-	var items: [FileItem]? {
-		if case .Available(let items) = root.children {
-			return Array(items.values)
-		}
-		return nil
-	}
-
 	init(path: URL) throws {
-		self.path = path.standardized
-		self.root = NonLeafItem.init(path: path)
+		self.root = FileItem(path: path.standardized, isLeaf: false)
 
 		self.fd = open(path.path, O_EVTONLY | O_RDONLY)
-		if fd == -1 {
+		if fd < 0 {
 			let code = errno
 			throw InitError(code: code, message: String(cString: strerror(code)))
 		}
 
-		// When we are notified that a file is deleted, we check whether its
-		// parent exists in our tree. If it does, we invalidate (if
-		// collapsed) or update (if parent is expanded) its `.children`
-		// property without the item.
-
-		// Moved or renamed files:
-		//
-		// The following applies if we hold a file descriptor for the moved or
-		// renamed file:
-		//
-		//	We check whether the new and old parents (which may be the same)
-		//	exist in our tree. If they do, we invalidate (if parent is collapsed)
-		//	or update (if parent is expanded) the `.children` properties of each.
-		//	We remove the item from the old parent or invalidate its `.children`.
-		//	We keep a temporary copy of the old item's UUID, but delete its
-		//	identity from the `identities` dictionary. Then, if the new parent is
-		//	expanded, we add a new item to its `.children` initialize it with
-		//	the old item's UUID. If the new parent is not expanded, we
-		//	invalidate its `.children` and do not create any	new item or
-		//	identity.
-		//
-		// Otherwise, we treat the event as a delete-create pair and the
-		// continuity of the item's identity is broken.
-
-		// "If you want to track the current location of a directory, it is best
-		// to open the directory before creating the stream so that you have a
-		// file descriptor for it and can issue an F_GETPATH fcntl() to find the
-		// current path."
-		// https://developer.apple.com/documentation/coreservices/1455376-fseventstreamcreateflags/kfseventstreamcreateflagwatchroot
-		//
-		// Open directory at BSD-level, keep file descriptor, recreate
-		// FSEventStream with new path using fcntl()
-
-		// No identity-tracking is attempted for folders, except the root.
-
 		self.fsEventStream = FSEventStreamBox(
 			info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
-			callback: fsEventStreamCallback, pathsToWatch: [path])
+			pathsToWatch: [path]
+		)
 	}
 
 	deinit {
 		close(self.fd)
 	}
 
-	private func respondTo(fsEvents: [FSEvent]) {
-		for event in fsEvents {
-			print("Received a file system event for", event.url.path)
+	private func respondTo(event: FSEvent) {
+		// MAYBE: Explore optimizations for very wide trees.
 
-			let baseComponents = path.pathComponents
-			let targetComponents = event.url.standardized.pathComponents
-
-			guard
-				baseComponents.count <= targetComponents.count
-					&& baseComponents.starts(with: baseComponents)
-			else {
-				print(
-					"sumer: warning: skipped an event for", event.url.path,
-					"because it couldn't be resolved relative to", path.path)
-				continue
-			}
-
-			let remaining = targetComponents.dropFirst(baseComponents.count)
-
-			if Int(event.flags) & kFSEventStreamEventFlagItemCreated != 0 {
-				respondToCreated(components: remaining)
-			} else if Int(event.flags) & kFSEventStreamEventFlagItemRemoved != 0 {
-				print("item removed")
-			} else if Int(event.flags) & kFSEventStreamEventFlagItemRenamed != 0 {
-				print("item renamed")
-			}
-
-			print("(flags \(String(format: "%02x", event.flags)))")
-
-			if Int(event.flags) & kFSEventStreamEventFlagRootChanged != 0 {
-				print("!!!!!!! root changed; use fd")
-			}
+		if Int(event.flags) & kFSEventStreamEventFlagRootChanged != 0 {
+			respondToRootChanged()
+			return
 		}
-	}
 
-	private func respondToCreated<C: BidirectionalCollection>(components: C)
-	where C.Element == String {
+		print("sumer: debug: received a file system event for", event.url.path)
+
+		let baseComponents = path.pathComponents
+		let targetComponents = event.url.standardized.pathComponents
+
+		guard
+			baseComponents.count <= targetComponents.count
+				&& targetComponents.starts(with: baseComponents)
+		else {
+			print(
+				"sumer: debug warning: skipped an event for",
+				event.url.path,
+				"because it didn't look like it belonged to", path.path)
+			return
+		}
+
+		let remaining = targetComponents.dropFirst(baseComponents.count)
+
 		var current = self.root
-
-		for component in components.dropLast() {
-			if case .Unavailable = current.latestChildren {
-				// We should stop because we're not tracking this deep
-				// into the tree.
-				return
+		for component in remaining.dropLast() {
+			guard case .NonLeaf(let children) = current.kind else {
+				break
 			}
-
-			guard case .Available(var children) = current.latestChildren
-			else {
+			guard case .Available(let map) = children.items else {
 				// we aren't responsible for errored-out
 				// `ChildrenState`s —they get re-tried whenever
 				// `.children` is accessed
 				return
 			}
-
-			if children[component] == nil {
-				children[component] = .NonLeaf(
-					NonLeafItem(
-						path: current.path.appending(component: component)))
-			}
-			let next = children[component]!
-
-			if case .NonLeaf(let nextNonLeaf) = next {
-				current = nextNonLeaf
-			} else {
-				// A file was created under a path where we thought
-				// a file —and not a folder— existed.
-				current.latestChildren =
-					current.fetchChildren()
-				// This makes me want to change my mind about this whole
-				// approach :(
-				//
-				// It might be more robust to keep expansion state by filename
-				// and not attempt these surgical changes. Honestly sounds like
-				// a good idea
-			}
-		}
-		if let last = components.last {
-
+			guard let next = map[component] else { return }
+			current = next
 		}
 
-		// When we are notified that a new file is added, we check whether
-		// its parent exists in our tree.
-		//
-		// If it does, we invalidate (if
-		// parent is collapsed) or update (if parent is expanded) its
-		// `.children` property with the new item. Invalidating the `.children`
-		// of a collapsed item  stops us from needlessly updating any state
-		// deeper in the tree. When creating a new item, we generate a UUID
-		// through the `FileItem` constructor.
-		//
-		// If it doesn't, we instead follow the same logic for the parent
-		// directories of the new file: starting from the uppermost ones, we
-		// ensure that each either exists in its parent or that its parent is
-		// invalidated due to the change. The representation for the file itself
-		// is never created, because the new file is hidden in the UI and is not
-		// being tracked in this case.
+		let parent = current
+		let parentChildren =
+			{
+				switch parent.kind {
+				case .Leaf:
+					let c = FileItem.Children(item: parent)
+					parent.kind = .NonLeaf(c)
+					return c
+				case .NonLeaf(let c):
+					return c
+				}
+			}()
+		parentChildren.fetch()
 	}
 
-	enum FileItem: Identifiable {
-		case Leaf(LeafItem)
-		case NonLeaf(NonLeafItem)
+	private func respondToRootChanged() {
+		let buffer = UnsafeMutableBufferPointer<CChar>.allocate(capacity: Int(PATH_MAX))
+		defer { buffer.deallocate() }
+		let rawPointer = UnsafeMutableRawPointer(buffer.baseAddress)
 
-		/// A unique identifier for the `FileItem`.
-		var id: UUID {
-			switch self {
-			case .Leaf(let item):
-				return item.id
-			case .NonLeaf(let item):
-				return item.id
-			}
+		let result = getpath_fcntl(fd, rawPointer)
+		if result < 0 {
+			fatalError("TODO: Handle this condition")
 		}
 
-		var path: URL {
-			switch self {
-			case .Leaf(let item):
-				return item.path
-			case .NonLeaf(let item):
-				return item.path
-			}
+		self.root.path = URL(fileURLWithPath: String(cString: buffer.baseAddress!))
+		guard case .NonLeaf(let children) = self.root.kind else {
+			fatalError("invariant unsatisfied")
 		}
+		children.fetch()
 	}
 
-	@Observable class LeafItem: Identifiable {
-		let id: UUID
-		fileprivate(set) var path: URL
-
-		convenience init(path: URL) {
-			self.init(path: path, id: UUID())
+	@Observable class FileItem: Identifiable {
+		enum Kind {
+			case Leaf
+			case NonLeaf(Children)
 		}
-		init(path: URL, id: UUID) {
-			self.path = path
-			self.id = id
-		}
-	}
 
-	@Observable class NonLeafItem: Identifiable {
-		var isExpanded = false
+		/// The kind of `self`. You can use this property to access the children
+		/// of a `FileItem.Kind.NonLeaf(Children)`.
+		fileprivate(set) var kind: Kind = .Leaf
+
 		let id: UUID = UUID()
-		fileprivate(set) var path: URL
+		var path: URL
 
-		enum ChildrenState {
-			/// The item is collapsed
-			case Unavailable
-
-			/// The wrapped `Dictionary` includes the `NonLeafItem`'s children,
-			/// mapped by their path's final component (their name).
-			case Available([String: FileItem])
-			case Failed(Error)
+		init(path: URL, isLeaf: Bool) {
+			self.path = path
+			if !isLeaf {
+				self.kind = .NonLeaf(Children(item: self))
+			}
 		}
 
-		fileprivate func fetchChildren() -> ChildrenState {
-			let fm = FileManager.default
-			do {
-				let contents = try fm.contentsOfDirectory(
-					at: path, includingPropertiesForKeys: [.isDirectoryKey])
+		func move(to: URL, with trackedDir: TrackedDirectory) {}
 
-				var childrenMap: [String: FileItem] = [:]
-				for url in contents {
-					let resourceValues = try url.resourceValues(forKeys: [
-						.isDirectoryKey
-					])
-					let isDirectory = resourceValues.isDirectory ?? false
+		@Observable class Children {
+			unowned let item: FileItem
+			var areExpanded = false
 
-					if isDirectory {
-						childrenMap[url.lastPathComponent] =
-							FileItem.NonLeaf(
-								NonLeafItem(
-									path: url))
-					} else {
-						childrenMap[url.lastPathComponent] = FileItem.Leaf(
-							LeafItem(
-								path: url))
+			enum ChildrenState {
+				case Failed(Error)
+				/// The item is collapsed
+				case Unavailable
+				/// The wrapped `Dictionary` includes the `NonLeafItem`'s children,
+				/// mapped by their path's final component (their name).
+				case Available([String: FileItem])
+			}
+
+			// !!! TODO: Don't recreate existing children
+			fileprivate func fetch() {
+				var out: ChildrenState
+
+				let fm = FileManager.default
+				do {
+					let contents = try fm.contentsOfDirectory(
+						at: item.path,
+						includingPropertiesForKeys: [.isDirectoryKey]
+					)
+
+					var childrenMap: [String: FileItem] = [:]
+					for url in contents {
+						let resourceValues = try url.resourceValues(
+							forKeys: [
+								.isDirectoryKey
+							])
+						let isDirectory =
+							resourceValues.isDirectory ?? false
+
+						if isDirectory {
+							childrenMap[url.lastPathComponent] =
+								FileItem(path: url, isLeaf: false)
+						} else {
+							childrenMap[url.lastPathComponent] =
+								FileItem(
+									path: url, isLeaf: true)
+						}
 					}
+
+					out = .Available(childrenMap)
+				} catch {
+					out = .Failed(error)
 				}
 
-				return .Available(childrenMap)
-			} catch {
-				return .Failed(error)
-			}
-		}
-
-		/// unavailable unless expanded
-		var children: ChildrenState {
-			if !isExpanded {
-				return .Unavailable
+				latestChildren = out
 			}
 
-			if case .Available = latestChildren {
+			/// If available, provides access to a collection of `FileItem`s
+			/// representing the children. The items will not be available
+			/// unless `areExpanded` is set to `true`.
+			var items: ChildrenState {
+				if !areExpanded {
+					return .Unavailable
+				}
+
+				if case .Available = latestChildren {
+					return latestChildren
+				}
+				fetch()
 				return latestChildren
 			}
-			latestChildren = fetchChildren()
-			return latestChildren
-		}
 
-		/// The latest known state of the `NonLeafItem`'s children.
-		///
-		/// This property is accurate if available. It is always available while
-		/// the item is expanded. If the item is not expanded, it may be
-		/// unavailable until the item is expanded again.
-		///
-		/// **Details**
-		///
-		/// This property is `.Unavailable` until the item is expanded. While it
-		/// is expanded, it is kept up to date.
-		///
-		/// It may also be available even if the item is collapsed, in which
-		/// case the data is not stale. If a file system event that makes this
-		/// property inaccurate occurs, the property is set back to
-		/// `.Unavailable`.
-		fileprivate var latestChildren: ChildrenState = .Unavailable
+			/// The latest known state of the `NonLeafItem`'s children.
+			///
+			/// This property is accurate if available. It is always available while
+			/// the item is expanded. If the item is not expanded, it may be
+			/// unavailable until the item is expanded again.
+			///
+			/// **Details**
+			///
+			/// This property is `.Unavailable` until the item is expanded. While it
+			/// is expanded, it is kept up to date.
+			///
+			/// It may also be available even if the item is collapsed, in which
+			/// case the data is not stale. If a file system event that makes this
+			/// property inaccurate occurs, the property is set back to
+			/// `.Unavailable`.
+			fileprivate var latestChildren: ChildrenState = .Unavailable
 
-		init(path: URL) {
-			self.path = path
+			init(item: FileItem) {
+				self.item = item
+			}
 		}
 	}
 }

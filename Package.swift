@@ -12,11 +12,14 @@ let package = Package(
 		// Targets are the basic building blocks of a package, defining a module or a test suite.
 		// Targets can depend on other targets in this package and products from dependencies.
 		.target(name: "Plow", path: "Sources/Plow"),
+		.target(
+			name: "BridgedC",
+			path: "Sources/C",
+			publicHeadersPath: "include"
+		),
 		.executableTarget(
 			name: "Sumer",
-			dependencies: [
-				"Plow"
-			]
+			dependencies: ["BridgedC", "Plow"]
 		),
 		.testTarget(name: "SumerTests", dependencies: ["Sumer"], path: "Tests"),
 	]
