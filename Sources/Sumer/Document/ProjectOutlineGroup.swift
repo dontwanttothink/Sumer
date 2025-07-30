@@ -18,7 +18,7 @@ struct ProjectItemView: View {
 
 		switch item.kind {
 		case .Leaf:
-			Label(item.path.lastPathComponent, systemImage: image)
+			Label(item.url.lastPathComponent, systemImage: image)
 		case .NonLeaf(let children):
 			let expandedBinding = Binding(
 				get: { children.areExpanded },
@@ -27,13 +27,14 @@ struct ProjectItemView: View {
 			DisclosureGroup(isExpanded: expandedBinding) {
 				if case .Available(let childrenItems) = children.items {
 					let items: [TrackedDirectory.FileItem] = Array(
-						childrenItems.values)
+						childrenItems.values
+					).sorted()
 					ForEach(items) { (item: TrackedDirectory.FileItem) in
 						ProjectItemView(item: item, level: level + 1)
 					}
 				}
 			} label: {
-				Label(item.path.lastPathComponent, systemImage: image)
+				Label(item.url.lastPathComponent, systemImage: image)
 			}
 		}
 	}
@@ -52,7 +53,8 @@ struct ProjectOutlineGroup: View {
 		List(selection: $selection) {
 			switch root.items {
 			case .Available(let items):
-				ForEach(Array(items.values)) { (item: TrackedDirectory.FileItem) in
+				ForEach(Array(items.values).sorted()) {
+					(item: TrackedDirectory.FileItem) in
 					ProjectItemView(item: item)
 				}
 			case .Unavailable:

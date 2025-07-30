@@ -133,8 +133,8 @@ import SwiftUI
 
 	private var fsEventStream: FSEventStreamBox!
 
-	var path: URL {
-		self.root.path
+	var url: URL {
+		self.root.url
 	}
 	private var root: FileItem
 	private var fd: Int32
@@ -156,14 +156,14 @@ import SwiftUI
 		}
 	}
 
-	init(path: URL) throws {
-		let root = FileItem(path: path.standardized, isLeaf: false)
+	init(url: URL) throws {
+		let root = FileItem(path: url.standardized, isLeaf: false)
 		if case .NonLeaf(let children) = root.kind {
 			children.areExpanded = true
 		}
 		self.root = root
 
-		self.fd = open(path.path, O_EVTONLY | O_RDONLY)
+		self.fd = open(url.path, O_EVTONLY | O_RDONLY)
 		if fd < 0 {
 			let code = errno
 			throw InitError(code: code, message: String(cString: strerror(code)))
@@ -171,7 +171,7 @@ import SwiftUI
 
 		self.fsEventStream = FSEventStreamBox(
 			info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
-			pathsToWatch: [path]
+			pathsToWatch: [url]
 		)
 	}
 
@@ -189,7 +189,7 @@ import SwiftUI
 
 		print("sumer: debug: received a file system event for", event.url.path)
 
-		let baseComponents = path.pathComponents
+		let baseComponents = url.pathComponents
 		let targetComponents = event.url.standardized.pathComponents
 
 		guard
@@ -199,7 +199,7 @@ import SwiftUI
 			print(
 				"sumer: debug warning: skipped an event for",
 				event.url.path,
-				"because it didn't look like it belonged to", path.path)
+				"because it didn't look like it belonged to", url.path)
 			return
 		}
 
@@ -245,22 +245,30 @@ import SwiftUI
 			fatalError("URGENT TODO: Handle this condition")
 		}
 
-		self.root.path = URL(fileURLWithPath: String(cString: buffer.baseAddress!))
+		self.root.url = URL(fileURLWithPath: String(cString: buffer.baseAddress!))
 		guard case .NonLeaf(let children) = self.root.kind else {
 			fatalError("invariant unsatisfied")
 		}
 		self.fsEventStream = FSEventStreamBox(
 			info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
-			pathsToWatch: [path]
+			pathsToWatch: [url]
 		)
 
 		children.fetch()
 	}
 
-	@Observable class FileItem: Identifiable {
+	@Observable class FileItem: Identifiable, Comparable {
 		enum Kind {
 			case Leaf
 			case NonLeaf(Children)
+
+			var isLeaf: Bool {
+				if case .Leaf = self {
+					return true
+				} else {
+					return false
+				}
+			}
 		}
 
 		/// The kind of `self`. You can use this property to access the children
@@ -268,16 +276,24 @@ import SwiftUI
 		fileprivate(set) var kind: Kind = .Leaf
 
 		let id: UUID = UUID()
-		var path: URL
+		var url: URL
 
 		init(path: URL, isLeaf: Bool) {
-			self.path = path
+			self.url = path
 			if !isLeaf {
 				self.kind = .NonLeaf(Children(item: self))
 			}
 		}
 
 		func move(to: URL, with trackedDir: TrackedDirectory) {}
+
+		static func < (lhs: FileItem, rhs: FileItem) -> Bool {
+			lhs.kind.isLeaf == rhs.kind.isLeaf
+				? lhs.url.path < rhs.url.path : rhs.kind.isLeaf
+		}
+		static func == (lhs: FileItem, rhs: FileItem) -> Bool {
+			return lhs.url == rhs.url && lhs.kind.isLeaf == rhs.kind.isLeaf
+		}
 
 		@Observable class Children {
 			unowned let item: FileItem
@@ -299,7 +315,7 @@ import SwiftUI
 				let fm = FileManager.default
 				do {
 					let contents = try fm.contentsOfDirectory(
-						at: item.path,
+						at: item.url,
 						includingPropertiesForKeys: [.isDirectoryKey]
 					)
 

@@ -7,7 +7,7 @@ struct ProjectView: View {
 
 	init(_ path: URL) {
 		do {
-			self.root = try TrackedDirectory(path: path)
+			self.root = try TrackedDirectory(url: path)
 			self.error = nil
 		} catch {
 			self.error = error
@@ -26,7 +26,7 @@ struct ProjectView: View {
 				} else {
 					Text("No selection")
 				}
-				Text("You are editing " + root.path.absoluteString)
+				Text("You are editing " + root.url.absoluteString)
 			}
 		} else {
 			if let error {
