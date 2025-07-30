@@ -133,7 +133,7 @@ import SwiftUI
 
 	private var fsEventStream: FSEventStreamBox!
 
-	private var path: URL {
+	var path: URL {
 		self.root.path
 	}
 	private var root: FileItem
@@ -155,7 +155,11 @@ import SwiftUI
 	}
 
 	init(path: URL) throws {
-		self.root = FileItem(path: path.standardized, isLeaf: false)
+		let root = FileItem(path: path.standardized, isLeaf: false)
+		if case .NonLeaf(let children) = root.kind {
+			children.areExpanded = true
+		}
+		self.root = root
 
 		self.fd = open(path.path, O_EVTONLY | O_RDONLY)
 		if fd < 0 {
@@ -243,6 +247,11 @@ import SwiftUI
 		guard case .NonLeaf(let children) = self.root.kind else {
 			fatalError("invariant unsatisfied")
 		}
+		self.fsEventStream = FSEventStreamBox(
+			info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
+			pathsToWatch: [path]
+		)
+
 		children.fetch()
 	}
 
