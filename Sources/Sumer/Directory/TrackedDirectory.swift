@@ -236,7 +236,7 @@ import SwiftUI
 
 		let result = getpath_fcntl(fd, rawPointer)
 		if result < 0 {
-			fatalError("TODO: Handle this condition")
+			fatalError("URGENT TODO: Handle this condition")
 		}
 
 		self.root.path = URL(fileURLWithPath: String(cString: buffer.baseAddress!))
