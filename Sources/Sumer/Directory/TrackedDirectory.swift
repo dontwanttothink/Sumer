@@ -290,7 +290,7 @@ import SwiftUI
 				case Available([String: FileItem])
 			}
 
-			// !!! TODO: Don't recreate existing children
+			// TODO: Don't block on IO
 			fileprivate func fetch() {
 				var out: ChildrenState
 
@@ -302,7 +302,19 @@ import SwiftUI
 					)
 
 					var childrenMap: [String: FileItem] = [:]
+
+					let oldChildren: [String: FileItem] =
+						switch latestChildren {
+						case .Available(let oldChildren):
+							oldChildren
+						default:
+							[:]
+						}
+
 					for url in contents {
+						let name = url.lastPathComponent
+						let existing = oldChildren[name]
+
 						let resourceValues = try url.resourceValues(
 							forKeys: [
 								.isDirectoryKey
@@ -310,14 +322,11 @@ import SwiftUI
 						let isDirectory =
 							resourceValues.isDirectory ?? false
 
-						if isDirectory {
-							childrenMap[url.lastPathComponent] =
-								FileItem(path: url, isLeaf: false)
-						} else {
-							childrenMap[url.lastPathComponent] =
-								FileItem(
-									path: url, isLeaf: true)
-						}
+						childrenMap[name] =
+							existing
+							?? FileItem(
+								path: url,
+								isLeaf: !isDirectory)
 					}
 
 					out = .Available(childrenMap)
