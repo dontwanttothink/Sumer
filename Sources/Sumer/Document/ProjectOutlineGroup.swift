@@ -1,7 +1,7 @@
 import SwiftUI
 
 func getSystemImage(for fileItem: TrackedDirectory.FileItem) -> String {
-	return switch fileItem {
+	return switch fileItem.kind {
 	case .NonLeaf:
 		"folder"
 	case .Leaf:
@@ -16,24 +16,24 @@ struct ProjectItemView: View {
 	var body: some View {
 		let image = getSystemImage(for: item)
 
-		switch item {
-		case .Leaf(let leafItem):
-			Label(leafItem.path.lastPathComponent, systemImage: image)
-		case .NonLeaf(let nonLeafItem):
+		switch item.kind {
+		case .Leaf:
+			Label(item.path.lastPathComponent, systemImage: image)
+		case .NonLeaf(let children):
 			let expandedBinding = Binding(
-				get: { nonLeafItem.isExpanded },
-				set: { newValue in nonLeafItem.isExpanded = newValue })
+				get: { children.areExpanded },
+				set: { newValue in children.areExpanded = newValue })
 
 			DisclosureGroup(isExpanded: expandedBinding) {
-				if case .Available(let children) = nonLeafItem.children {
+				if case .Available(let childrenItems) = children.items {
 					let items: [TrackedDirectory.FileItem] = Array(
-						children.values)
+						childrenItems.values)
 					ForEach(items) { (item: TrackedDirectory.FileItem) in
 						ProjectItemView(item: item, level: level + 1)
 					}
 				}
 			} label: {
-				Label(nonLeafItem.path.lastPathComponent, systemImage: image)
+				Label(item.path.lastPathComponent, systemImage: image)
 			}
 		}
 	}
@@ -50,8 +50,15 @@ struct ProjectOutlineGroup: View {
 
 	var body: some View {
 		List(selection: $selection) {
-			ForEach(root.items ?? []) { (item: TrackedDirectory.FileItem) in
-				ProjectItemView(item: item)
+			switch root.items {
+			case .Available(let items):
+				ForEach(Array(items.values)) { (item: TrackedDirectory.FileItem) in
+					ProjectItemView(item: item)
+				}
+			case .Unavailable:
+				Text("anothererrorlollll")
+			case .Failed:
+				Text("ERror lol")
 			}
 		}
 	}
