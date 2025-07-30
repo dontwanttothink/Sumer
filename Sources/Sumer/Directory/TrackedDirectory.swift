@@ -139,6 +139,8 @@ import SwiftUI
 	private var root: FileItem
 	private var fd: Int32
 
+	/// The top-level items in this directory. The items are given in an
+	/// arbitrary and unstable order.
 	var items: FileItem.Children.ChildrenState {
 		guard case .NonLeaf(let children) = root.kind else {
 			fatalError("The `TrackedDirectory`'s root is a leaf.")
