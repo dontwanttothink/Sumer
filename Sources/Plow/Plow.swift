@@ -169,6 +169,8 @@ public class PlowRope: BidirectionalCollection {
 				root!.weight = strCount
 				root!.left = new
 			}
+
+			self.count += strCount
 			return
 		}
 
@@ -215,6 +217,8 @@ public class PlowRope: BidirectionalCollection {
 				c = p
 			}
 		}
+
+		self.count += strCount
 
 		rb_insert_fixup(new)
 	}
