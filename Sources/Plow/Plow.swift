@@ -200,10 +200,20 @@ public class PlowRope: BidirectionalCollection {
 			}
 
 			// fix weights
+			var c = new
+			while let p = c.parent, p.left === c {
+				p.weight! += strCount
+				c = p
+			}
 		} else {
-			current!.content = left
+			var c = current!
+			c.content = left
 
 			// fix weights
+			while let p = c.parent, p.left === c {
+				p.weight! += strCount
+				c = p
+			}
 		}
 
 		rb_insert_fixup(new)
