@@ -66,7 +66,7 @@ public class PlowRopeNode {
 	}
 
 	/// assumes that self.right != nil
-	private func leftRotate() {
+	func leftRotate() {
 		let y = self.right!
 
 		self.right = y.left
@@ -91,7 +91,7 @@ public class PlowRopeNode {
 	}
 
 	/// assumes that self.left != nil
-	private func rightRotate() {
+	func rightRotate() {
 		let x = self.left!
 
 		self.left = x.right
@@ -128,7 +128,45 @@ public class PlowRope: BidirectionalCollection {
 	}
 
 	private func rb_insert_fixup(new node: PlowRopeNode) {
-
+		var n = node
+		while let p = n.parent, p.color == .Red {
+			if let ppl = p.parent?.left,
+				p === ppl
+			{
+				let uncle = p.parent!.right
+				if uncle?.color ?? .Black == .Red {
+					p.color = .Black
+					uncle?.color = .Black
+					p.parent!.color = .Red
+					n = p.parent!  // ? probably incorrect
+				} else {
+					if let pr = n.parent?.right, n === pr {
+						n = n.parent!
+						n.leftRotate()
+					}
+					n.parent?.color = .Black
+					n.parent?.parent?.color = .Red
+					n.parent?.parent?.rightRotate()
+				}
+			} else {
+				let uncle = p.parent?.left
+				if uncle?.color ?? .Black == .Red {
+					p.color = .Black
+					uncle!.color = .Black
+					p.parent?.color = .Red
+					n = p.parent!  // ditto
+				} else {
+					if n === n.parent?.left {
+						n = p
+						n.rightRotate()
+					}
+					p.color = .Black
+					p.parent!.color = .Red
+					n.parent!.parent!.leftRotate()
+				}
+			}
+		}
+		self.root!.color = .Black
 	}
 
 	private func insert(str: String, at idx: Int) throws {
