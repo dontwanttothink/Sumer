@@ -245,6 +245,7 @@ public class PlowRope: BidirectionalCollection {
 				p.weight! += strCount
 				c = p
 			}
+			rb_insert_fixup(new: new)
 		} else {
 			var c = current!
 			c.content = left
@@ -257,8 +258,6 @@ public class PlowRope: BidirectionalCollection {
 		}
 
 		self.count += strCount
-
-		rb_insert_fixup(new)
 	}
 }
 
