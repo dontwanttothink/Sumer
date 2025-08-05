@@ -66,8 +66,8 @@ public class PlowRopeNode {
 		self.content = content
 	}
 
-	// TODO: should these methods be updated to keep weights
-	// accurate?
+	// TODO: These methods should be updated to keep weight numbers accurate.
+	//
 	/// Applies a left rotation operation from Red-Black Trees on this node. A
 	/// crash occurs if `self.right == nil`.
 	///
@@ -135,12 +135,49 @@ public class PlowRope /* : BidirectionalCollection */ {
 	}
 
 	/// Performs manipulations on the tree to fix imbalances after an internode
-	/// insertion.
+	/// insertion. Weights remain correct.
 	///
 	/// - Parameter new: A ``PlowRopeNode`` returned by ``newInternode(at:)``.
-	/// - Returns: A leaf, _A_, such that the path from the root to _A_ includes
-	/// every node whose ``PlowRopeNode/weight`` is newly inconsistent.
 	private func redBlackFixup(dueTo new: PlowRopeNode) {
+		var current = new
+		while let parent = current.parent, parent.color == .Red {
+			let grandparent = parent.parent
+			if let grandparent, parent === grandparent.left {
+				if let uncle = grandparent.right, uncle.color == .Red {
+					parent.color = .Black
+					uncle.color = .Black
+					grandparent.color = .Red
+					current = grandparent
+				} else {
+					if current === parent.right {
+						current = parent
+						current.leftRotate()
+					}
+					current.parent!.color = .Black
+					current.parent!.parent!.color = .Red
+					current.parent!.parent!.rightRotate()
+				}
+			} else {
+				// symmetrical, with 'left' and 'right' exchanged
+				if let grandparent,
+					let uncle = grandparent.left,
+					uncle.color == .Red
+				{
+					parent.color = .Black
+					uncle.color = .Black
+					grandparent.color = .Red
+					current = grandparent
+				} else {
+					if current === parent.left {
+						current = parent
+						current.rightRotate()
+					}
+					current.parent!.color = .Black
+					current.parent!.parent!.color = .Red
+					current.parent!.parent!.leftRotate()
+				}
+			}
+		}
 	}
 
 	/// Inserts a new internode (non-content) suitable for large text insertion
