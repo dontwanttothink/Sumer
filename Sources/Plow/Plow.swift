@@ -288,17 +288,6 @@ public class PlowRope /* : BidirectionalCollection */ {
 	/// - Parameter new: A ``PlowRopeNode/ParentalNode`` returned by
 	/// ``newInternode(at:)``.
 	private func insertionFixup(dueTo new: PlowRopeNode) {
-		var current = new
-		var maybeParent = new.parent
-		while let parent = maybeParent {
-			var newRoot: PlowRopeNode
-			if current.isRightChildOf(parent) {
-				if parent.balanceFactor > 0 {
-					// right-heavy
-					let grandparent = parent.parent
-				}
-			}
-		}
 	}
 
 	/// Inserts a new internode (non-content) suitable for large text insertion
