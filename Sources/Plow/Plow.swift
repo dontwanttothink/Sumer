@@ -187,6 +187,32 @@ public final class PlowRopeNode {
 
 		func rotateLeftRight(with z: ParentalNode) -> ParentalNode {
 			assert(z === self.left && z.balanceFactor > 0)
+
+			let y = z.right.asParental()
+			let yl = y.left
+			z.right = yl
+			yl.parent = z
+			y.left = z.container
+			z.parent = y
+
+			let yr = y.right
+			self.left = yr
+
+			yr.parent = self
+			y.right = self.container
+			self.parent = y
+
+			if y.balanceFactor == 0 {
+				self.balanceFactor = 0
+				z.balanceFactor = 0
+			} else if y.balanceFactor < 0 {
+				self.balanceFactor = 1
+				z.balanceFactor = 0
+			} else {
+				self.balanceFactor = 0
+				z.balanceFactor = -1
+			}
+			return y
 		}
 
 		func rotateRightLeft(with z: ParentalNode) -> ParentalNode {
