@@ -86,7 +86,7 @@ public final class PlowRopeNode {
 	/// this method is called on a leaf.
 	func asParental() -> PlowRopeNode.ParentalNode {
 		guard case .Parental(let node) = self.data else {
-			fatalError("Attempted to use a leaf node as a parental node.")
+			preconditionFailure("Attempted to use a leaf node as a parental node.")
 		}
 		return node
 	}
@@ -146,12 +146,12 @@ public final class PlowRopeNode {
 
 		// TODO: keep counts correct
 		func rotateLeft(with z: ParentalNode) -> ParentalNode {
+			assert(z === self.right && z.balanceFactor >= 0)
+
 			let inner = z.left
 			self.right = inner
+			inner.parent = self
 
-			if case .Parental(let node) = inner.data {
-				node.right.parent = self
-			}
 			z.left = self.container
 			self.parent = z
 
@@ -166,11 +166,31 @@ public final class PlowRopeNode {
 		}
 
 		func rotateRight(with z: ParentalNode) -> ParentalNode {
+			assert(z === self.left && z.balanceFactor <= 0)
 
+			let inner = z.right
+			self.left = inner
+			inner.parent = self
+
+			z.right = self.container
+			self.parent = z
+
+			if z.balanceFactor == 0 {
+				self.balanceFactor = -1
+				z.balanceFactor = 1
+			} else {
+				self.balanceFactor = 0
+				z.balanceFactor = 0
+			}
+			return z
+		}
+
+		func rotateLeftRight(with z: ParentalNode) -> ParentalNode {
+			assert(z == self.left && z.balanceFactor > 0)
 		}
 
 		func rotateRightLeft(with z: ParentalNode) -> ParentalNode {
-
+			assert(z == self.right && z.balanceFactor < 0)
 		}
 	}
 
