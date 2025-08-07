@@ -31,7 +31,9 @@ public final class PlowRopeNode {
 		data = .Leaf(LeafNode(content, ownedBy: owner, forContainer: self))
 	}
 
-	/// Creates a new parental node.
+	/// Creates a new parental node. You may omit or pass `nil` to the
+	/// `leftChild` and `rightChild` parameters. In that case, empty leaves will
+	/// take their place.
 	init(
 		ownedBy owner: PlowRope, leftChild: PlowRopeNode? = nil,
 		rightChild: PlowRopeNode? = nil
@@ -269,17 +271,30 @@ public final class PlowRopeNode {
 	}
 }
 
-// The root is never a leaf node.
 public class PlowRope /* : BidirectionalCollection */ {
 	public var count: Int {
 		root.count
 	}
-	var root: PlowRopeNode!
+
+	/// The root is never a leaf node.
+	///
+	/// The setter for this property stores a strong reference to the
+	/// ``PlowRopeNode/ParentalNode``'s' `.container` property.
+	var root: PlowRopeNode.ParentalNode {
+		get {
+			_root.asParental()
+		}
+		set {
+			_root = newValue.container
+		}
+	}
+	private var _root: PlowRopeNode!
 
 	convenience init() {
 		try! self.init(for: "")
 	}
 	init(for str: String) throws {
+		self._root = PlowRopeNode(ownedBy: self)
 	}
 
 	/// Performs manipulations on the tree to fix imbalances after an internode
@@ -287,7 +302,57 @@ public class PlowRope /* : BidirectionalCollection */ {
 	///
 	/// - Parameter new: A ``PlowRopeNode/ParentalNode`` returned by
 	/// ``newInternode(at:)``.
-	private func insertionFixup(dueTo new: PlowRopeNode) {
+	// The subtree 'new' must be already in AVL shape. Its height must have
+	// increased by one. This is also a loop invariant.
+	private func insertionFixup(dueTo new: PlowRopeNode.ParentalNode) {
+		var z = new
+		while let x = z.parent {
+			var n: PlowRopeNode.ParentalNode
+			var g: PlowRopeNode.ParentalNode?
+
+			if z === x.right {
+				if x.balanceFactor > 0 {
+					g = x.parent
+					if z.balanceFactor < 0 {
+						n = x.rotateRightLeft(with: z)
+					} else {
+						n = x.rotateLeft(with: z)
+					}
+				} else if x.balanceFactor < 0 {
+					x.balanceFactor = 0
+					break
+				} else {
+					x.balanceFactor = 1
+					continue
+				}
+			} else {
+				if x.balanceFactor < 0 {
+					g = x.parent
+					if z.balanceFactor > 0 {
+						n = x.rotateLeftRight(with: z)
+					} else {
+						n = x.rotateRight(with: z)
+					}
+				} else if x.balanceFactor > 0 {
+					x.balanceFactor = 0
+					break
+				} else {
+					x.balanceFactor = -1
+					z = x
+					continue
+				}
+			}
+			n.parent = g
+			if let g {
+				if x.container.isLeftChildOf(g) {
+					g.left = n.container
+				} else {
+					g.right = n.container
+				}
+			} else {
+				self.root = n
+			}
+		}
 	}
 
 	/// Inserts a new internode (non-content) suitable for large text insertion
@@ -298,10 +363,10 @@ public class PlowRope /* : BidirectionalCollection */ {
 	/// not be balanced. Sizes remain correct.
 	///
 	/// - Returns: The inserted internode.
-	private func insertInternode(at index: Int) throws -> PlowRopeNode {
+	private func insertInternode(at index: Int) throws -> PlowRopeNode.ParentalNode {
 		precondition(index >= 0 && index <= self.count, "Index out of bounds")
 
-		var current = root!
+		var current = root.container
 		var cidx = index
 		var parent: PlowRopeNode.ParentalNode!
 		var pidx: Int!
@@ -325,7 +390,7 @@ public class PlowRope /* : BidirectionalCollection */ {
 		} else {
 			parent.right = new
 		}
-		return new
+		return new.asParental()
 	}
 
 	// we can implement concatenations through a split
