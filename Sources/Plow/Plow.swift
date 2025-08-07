@@ -34,6 +34,10 @@ public final class PlowRopeNode {
 	/// Creates a new parental node. You may omit or pass `nil` to the
 	/// `leftChild` and `rightChild` parameters. In that case, empty leaves will
 	/// take their place.
+	///
+	/// The new node's `count` property is set automatically based on the
+	/// children supplied. If you manually make changes to the children, you
+	/// must update the `count` property yourself.
 	init(
 		ownedBy owner: PlowRope, leftChild: PlowRopeNode? = nil,
 		rightChild: PlowRopeNode? = nil
@@ -133,6 +137,7 @@ public final class PlowRopeNode {
 
 		var balanceFactor: Int
 
+		/// `count` is automatically set based on the children supplied.
 		init(
 			ownedBy owner: PlowRope, forContainer container: PlowRopeNode,
 			leftChild: PlowRopeNode, rightChild: PlowRopeNode
@@ -294,7 +299,10 @@ public class PlowRope /* : BidirectionalCollection */ {
 		try! self.init(for: "")
 	}
 	init(for str: String) throws {
-		self._root = PlowRopeNode(ownedBy: self)
+		self._root = PlowRopeNode(
+			ownedBy: self,
+			leftChild: PlowRopeNode(ownedBy: self, content: str)
+		)
 	}
 
 	/// Performs manipulations on the tree to fix imbalances after an internode
@@ -304,7 +312,7 @@ public class PlowRope /* : BidirectionalCollection */ {
 	/// ``newInternode(at:)``.
 	// The subtree 'new' must be already in AVL shape. Its height must have
 	// increased by one. This is also a loop invariant.
-	private func insertionFixup(dueTo new: PlowRopeNode.ParentalNode) {
+	func insertionFixup(dueTo new: PlowRopeNode.ParentalNode) {
 		var z = new
 		while let x = z.parent {
 			var n: PlowRopeNode.ParentalNode
@@ -363,7 +371,7 @@ public class PlowRope /* : BidirectionalCollection */ {
 	/// not be balanced. Sizes remain correct.
 	///
 	/// - Returns: The inserted internode.
-	private func insertInternode(at index: Int) throws -> PlowRopeNode.ParentalNode {
+	func insertInternode(at index: Int) throws -> PlowRopeNode.ParentalNode {
 		precondition(index >= 0 && index <= self.count, "Index out of bounds")
 
 		var current = root.container
