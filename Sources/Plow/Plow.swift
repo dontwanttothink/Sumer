@@ -16,7 +16,7 @@ extension String {
 	}
 }
 
-public final class PlowRopeNode {
+final class PlowRopeNode {
 	public static let maxLeafCount = 1_000_000
 
 	enum Data {
@@ -90,9 +90,23 @@ public final class PlowRopeNode {
 
 	/// Obtain the parental node corresponding to this node. A crash occurs if
 	/// this method is called on a leaf.
+	///
+	/// If error handling is needed, yse pattern matching on the `data` property
+	/// instead.
 	func asParental() -> PlowRopeNode.ParentalNode {
 		guard case .Parental(let node) = self.data else {
 			preconditionFailure("Attempted to use a leaf node as a parental node.")
+		}
+		return node
+	}
+	/// Obtain the leaf node corresponding to this node. A crash occurs if this
+	/// method is called on a leaf.
+	///
+	/// If error handling is needed, yse pattern matching on the `data` property
+	/// instead.
+	func asLeaf() -> PlowRopeNode.LeafNode {
+		guard case .Leaf(let node) = self.data else {
+			preconditionFailure("Attempted to use a parental node as a leaf node.")
 		}
 		return node
 	}
@@ -312,7 +326,7 @@ public class PlowRope /* : BidirectionalCollection */ {
 	/// ``newInternode(at:)``.
 	// The subtree 'new' must be already in AVL shape. Its height must have
 	// increased by one. This is also a loop invariant.
-	func insertionFixup(dueTo new: PlowRopeNode.ParentalNode) {
+	private func insertionFixup(dueTo new: PlowRopeNode.ParentalNode) {
 		var z = new
 		while let x = z.parent {
 			var n: PlowRopeNode.ParentalNode
@@ -371,8 +385,8 @@ public class PlowRope /* : BidirectionalCollection */ {
 	/// not be balanced. Sizes remain correct.
 	///
 	/// - Returns: The inserted internode.
-	func insertInternode(at index: Int) throws -> PlowRopeNode.ParentalNode {
-		precondition(index >= 0 && index <= self.count, "Index out of bounds")
+	private func insertInternode(at index: Int) -> PlowRopeNode.ParentalNode {
+		precondition(index >= 0 && index < self.count, "Index out of bounds")
 
 		var current = root.container
 		var cidx = index
@@ -399,6 +413,55 @@ public class PlowRope /* : BidirectionalCollection */ {
 			parent.right = new
 		}
 		return new.asParental()
+	}
+
+	/// Deletes the leaf containing the character at the position `index`. To
+	/// keep a valid tree structure, the sibling of the deleted leaf may take
+	/// the place of its old parent, or move from being its right child to
+	/// being its left child.
+	///
+	/// - Returns: The deleted leaf's sibling's parent after the tree
+	/// manipulation, which might not have changed.
+	private func deleteLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
+		precondition(index >= 0 && index < self.count, "Index out of bounds")
+
+		var current = root.container
+		var cidx = index
+		while case .Parental(let children) = current.data {
+			if cidx < children.left.count {
+				current = children.left
+			} else {
+				cidx -= children.left.count
+				current = children.right
+			}
+		}
+
+		let leaf = current
+		let parent = leaf.parent!
+
+		let sibling =
+			if leaf.isLeftChildOf(parent) {
+				parent.right
+			} else {
+				parent.left
+			}
+
+		if let grandparent = sibling.parent!.parent {
+			if parent.container.isLeftChildOf(grandparent) {
+				grandparent.left = sibling
+			} else {
+				grandparent.right = sibling
+			}
+			sibling.parent = grandparent
+
+			return grandparent
+		} else {
+			root.left = sibling
+			root.right = PlowRopeNode(ownedBy: self, content: "")
+			sibling.parent = root
+
+			return root
+		}
 	}
 
 	// we can implement concatenations through a split
