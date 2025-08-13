@@ -325,7 +325,7 @@ public class PlowRope /* : BidirectionalCollection */ {
 	}
 
 	/// Performs manipulations on the tree to fix imbalances after an internode
-	/// insertion. Sizes remain correct.
+	/// insertion. Counts remain correct.
 	///
 	/// - Parameter new: A ``PlowRopeNode/ParentalNode`` returned by
 	/// ``newInternode(at:)``.
