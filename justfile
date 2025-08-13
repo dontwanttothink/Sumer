@@ -1,11 +1,16 @@
+# Install watchexec to use this task.
 watch:
-    find . -name "*.swift" -not -path "./.build/*" | entr -r swift run
+    watchexec swift run
 
-build:
-    swift build
+# Available configurations are "debug" and "release".
+build configuration="debug":
+    swift build -c {{configuration}}
 
 run:
     swift run
 
 format:
     swift format -ri .
+
+distribute:
+    ./Distribution/create_app_bundle.sh
