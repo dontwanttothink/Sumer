@@ -291,6 +291,11 @@ final class PlowRopeNode {
 }
 
 public class PlowRope /* : BidirectionalCollection */ {
+	public let startIndex = 0
+	public var endIndex: Int {
+		count - 1
+	}
+
 	public var count: Int {
 		root.count
 	}
@@ -415,6 +420,72 @@ public class PlowRope /* : BidirectionalCollection */ {
 		return new.asParental()
 	}
 
+	/// Performs manipulations to fix imbalances caused by a deletion.
+	///
+	/// - Parameter shortened: Parental node returned by `deleteLeaf(at:)`.
+	private func deletionFixup(dueTo shortened: PlowRopeNode.ParentalNode) {
+		var n = shortened
+		var p = shortened.parent
+		while let x = p {
+			let g = x.parent
+
+			var b: Int
+			if n.container.isLeftChildOf(x) {
+				if x.balanceFactor > 0 {
+					let z = x.right.asParental()
+					b = z.balanceFactor
+					if b < 0 {
+						n = x.rotateRightLeft(with: z)
+					} else {
+						n = x.rotateLeft(with: z)
+					}
+				} else if x.balanceFactor == 0 {
+					x.balanceFactor = 1
+					break
+				} else {
+					n = x
+					n.balanceFactor = 0
+					p = g
+					continue
+				}
+			} else {
+				if x.balanceFactor < 0 {
+					let z = x.left.asParental()
+					b = z.balanceFactor
+					if b > 0 {
+						n = x.rotateLeft(with: z)
+					} else {
+						n = x.rotateRight(with: z)
+					}
+				} else if x.balanceFactor == 0 {
+					x.balanceFactor = -1
+					break
+				} else {
+					n = x
+					n.balanceFactor = 0
+					p = g
+					continue
+				}
+			}
+			n.parent = g
+			if let g {
+				if x.container.isLeftChildOf(g) {
+					g.left = n.container
+				} else {
+					g.right = n.container
+				}
+			} else {
+				self.root = n
+			}
+
+			if b == 0 {
+				break
+			}
+
+			p = g
+		}
+	}
+
 	/// Deletes the leaf containing the character at the position `index`. To
 	/// keep a valid tree structure, the sibling of the deleted leaf may take
 	/// the place of its old parent, or move from being its right child to
@@ -464,7 +535,20 @@ public class PlowRope /* : BidirectionalCollection */ {
 		}
 	}
 
-	// we can implement concatenations through a split
+	public func split() {
+	}
+
+	public func join() {
+	}
+
+	public subscript() -> Character {
+		return "a"
+	}
+
+	public func insert<C>(contentsOf newElements: C)
+	where C: Collection /* , C.Element == Self.Element */ {}
+
+	// we can implement large insertions through a split
 	// and two joins.
 }
 
