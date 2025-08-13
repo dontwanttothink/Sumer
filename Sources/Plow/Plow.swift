@@ -35,9 +35,9 @@ final class PlowRopeNode {
 	/// `leftChild` and `rightChild` parameters. In that case, empty leaves will
 	/// take their place.
 	///
-	/// The new node's `count` and `height` properties are set automatically
-	/// based on the children supplied. If you manually make changes to the
-	/// children, you must update these properties yourself.
+	/// The new node's `count`, `height` and `balanceFactor` properties are set
+	/// automatically based on the children supplied. If you manually make
+	/// changes to the children, you must update these properties yourself.
 	init(
 		ownedBy owner: PlowRope, leftChild: PlowRopeNode? = nil,
 		rightChild: PlowRopeNode? = nil
@@ -100,7 +100,7 @@ final class PlowRopeNode {
 	/// Obtain the parental node corresponding to this node. A crash occurs if
 	/// this method is called on a leaf.
 	///
-	/// If error handling is needed, yse pattern matching on the `data` property
+	/// If error handling is needed, use pattern matching on the `data` property
 	/// instead.
 	func asParental() -> PlowRopeNode.ParentalNode {
 		guard case .Parental(let node) = self.data else {
@@ -111,7 +111,7 @@ final class PlowRopeNode {
 	/// Obtain the leaf node corresponding to this node. A crash occurs if this
 	/// method is called on a leaf.
 	///
-	/// If error handling is needed, yse pattern matching on the `data` property
+	/// If error handling is needed, use pattern matching on the `data` property
 	/// instead.
 	func asLeaf() -> PlowRopeNode.LeafNode {
 		guard case .Leaf(let node) = self.data else {
@@ -161,7 +161,8 @@ final class PlowRopeNode {
 
 		var balanceFactor: Int
 
-		/// `count` is automatically set based on the children supplied.
+		/// `count, `height`, `balanceFactor` are automatically set based on
+		/// the children supplied.
 		init(
 			ownedBy owner: PlowRope, forContainer container: PlowRopeNode,
 			leftChild: PlowRopeNode, rightChild: PlowRopeNode
@@ -173,12 +174,20 @@ final class PlowRopeNode {
 			self.right = rightChild
 			self.count = leftChild.count + rightChild.count
 			self.height = max(leftChild.height, rightChild.height) + 1
-			self.balanceFactor = 0
+			self.balanceFactor = -self.left.height + self.right.height
 		}
 
-		// TODO: keep counts correct
-		func rotateLeft(with z: ParentalNode) -> ParentalNode {
-			assert(z === self.right && z.balanceFactor >= 0)
+		private func updateCount() {
+			self.count = self.right.count + self.left.count
+		}
+
+		// NOTE: `height`, `count` and `balanceFactor` must be kept consistent
+		// in rotation methods below.
+
+		// https://en.wikipedia.org/wiki/File:AVL-simple-left_K.svg
+		func rotateLeft() -> ParentalNode {
+			let z = self.right.asParental()
+			assert(z.balanceFactor >= 0)
 
 			let inner = z.left
 			self.right = inner
@@ -194,11 +203,20 @@ final class PlowRopeNode {
 				self.balanceFactor = 0
 				z.balanceFactor = 0
 			}
+
+			swap(&self.height, &z.height)
+
+			self.updateCount()
+			z.updateCount()
+			// ^must be done in this order since we are now z's child
+
 			return z
 		}
 
-		func rotateRight(with z: ParentalNode) -> ParentalNode {
-			assert(z === self.left && z.balanceFactor <= 0)
+		// https://en.wikipedia.org/wiki/File:AVL-simple-left_K.svg
+		func rotateRight() -> ParentalNode {
+			let z = self.left.asParental()
+			assert(z.balanceFactor <= 0)
 
 			let inner = z.right
 			self.left = inner
@@ -214,68 +232,31 @@ final class PlowRopeNode {
 				self.balanceFactor = 0
 				z.balanceFactor = 0
 			}
+
+			swap(&self.height, &z.height)
+
+			self.updateCount()
+			z.updateCount()
+
 			return z
 		}
 
-		func rotateLeftRight(with z: ParentalNode) -> ParentalNode {
-			assert(z === self.left && z.balanceFactor > 0)
+		// https://commons.wikimedia.org/wiki/File:AVL-double-rl_K.svg
+		func rotateLeftRight() -> ParentalNode {
+			let z = self.left.asParental()
+			assert(z.balanceFactor > 0)
 
-			let y = z.right.asParental()
-			let yl = y.left
-			z.right = yl
-			yl.parent = z
-			y.left = z.container
-			z.parent = y
-
-			let yr = y.right
-			self.left = yr
-
-			yr.parent = self
-			y.right = self.container
-			self.parent = y
-
-			if y.balanceFactor == 0 {
-				self.balanceFactor = 0
-				z.balanceFactor = 0
-			} else if y.balanceFactor < 0 {
-				self.balanceFactor = 1
-				z.balanceFactor = 0
-			} else {
-				self.balanceFactor = 0
-				z.balanceFactor = -1
-			}
-			return y
+			_ = z.rotateLeft()
+			return self.rotateRight()
 		}
 
-		func rotateRightLeft(with z: ParentalNode) -> ParentalNode {
-			assert(z === self.right && z.balanceFactor < 0)
+		// https://commons.wikimedia.org/wiki/File:AVL-double-rl_K.svg
+		func rotateRightLeft() -> ParentalNode {
+			let z = self.right.asParental()
+			assert(z.balanceFactor < 0)
 
-			let y = z.left.asParental()
-			let yr = y.right
-			z.left = yr
-			yr.parent = z
-			y.right = z.container
-			z.parent = y
-
-			let yl = y.left
-			self.right = yl
-
-			yl.parent = self
-			y.left = self.container
-			self.parent = y
-
-			if y.balanceFactor == 0 {
-				self.balanceFactor = 0
-				z.balanceFactor = 0
-			} else if y.balanceFactor > 0 {
-				self.balanceFactor = -1
-				z.balanceFactor = 0
-			} else {
-				self.balanceFactor = 0
-				z.balanceFactor = 1
-			}
-			y.balanceFactor = 0
-			return y
+			_ = z.rotateRight()
+			return self.rotateLeft()
 		}
 	}
 
@@ -340,7 +321,7 @@ public class PlowRope /* : BidirectionalCollection */ {
 	}
 
 	/// Performs manipulations on the tree to fix imbalances after an internode
-	/// insertion. Counts remain correct.
+	/// insertion. Counts and heights stored remain correct.
 	///
 	/// - Parameter new: A ``PlowRopeNode/ParentalNode`` returned by
 	/// ``newInternode(at:)``.
@@ -356,9 +337,9 @@ public class PlowRope /* : BidirectionalCollection */ {
 				if x.balanceFactor > 0 {
 					g = x.parent
 					if z.balanceFactor < 0 {
-						n = x.rotateRightLeft(with: z)
+						n = x.rotateRightLeft()
 					} else {
-						n = x.rotateLeft(with: z)
+						n = x.rotateLeft()
 					}
 				} else if x.balanceFactor < 0 {
 					x.balanceFactor = 0
@@ -371,9 +352,9 @@ public class PlowRope /* : BidirectionalCollection */ {
 				if x.balanceFactor < 0 {
 					g = x.parent
 					if z.balanceFactor > 0 {
-						n = x.rotateLeftRight(with: z)
+						n = x.rotateLeftRight()
 					} else {
-						n = x.rotateRight(with: z)
+						n = x.rotateRight()
 					}
 				} else if x.balanceFactor > 0 {
 					x.balanceFactor = 0
@@ -450,9 +431,9 @@ public class PlowRope /* : BidirectionalCollection */ {
 					let z = x.right.asParental()
 					b = z.balanceFactor
 					if b < 0 {
-						n = x.rotateRightLeft(with: z)
+						n = x.rotateRightLeft()
 					} else {
-						n = x.rotateLeft(with: z)
+						n = x.rotateLeft()
 					}
 				} else if x.balanceFactor == 0 {
 					x.balanceFactor = 1
@@ -468,9 +449,9 @@ public class PlowRope /* : BidirectionalCollection */ {
 					let z = x.left.asParental()
 					b = z.balanceFactor
 					if b > 0 {
-						n = x.rotateLeft(with: z)
+						n = x.rotateLeft()
 					} else {
-						n = x.rotateRight(with: z)
+						n = x.rotateRight()
 					}
 				} else if x.balanceFactor == 0 {
 					x.balanceFactor = -1
@@ -553,7 +534,10 @@ public class PlowRope /* : BidirectionalCollection */ {
 	public func split() {
 	}
 
+	private func joinRight(left: PlowRope, right: PlowRope) {
+	}
 	public func join() {
+
 	}
 
 	public subscript() -> Character {
