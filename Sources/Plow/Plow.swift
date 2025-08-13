@@ -20,15 +20,15 @@ final class PlowRopeNode {
 	public static let maxLeafCount = 1_000_000
 
 	enum Data {
-		case Parental(ParentalNode)
-		case Leaf(LeafNode)
+		case parental(ParentalNode)
+		case leaf(LeafNode)
 	}
 
 	var data: Data!
 
 	/// Creates a new leaf.
 	init(ownedBy owner: PlowRope, content: String) {
-		data = .Leaf(LeafNode(content, ownedBy: owner, forContainer: self))
+		data = .leaf(LeafNode(content, ownedBy: owner, forContainer: self))
 	}
 
 	/// Creates a new parental node. You may omit or pass `nil` to the
@@ -42,7 +42,7 @@ final class PlowRopeNode {
 		ownedBy owner: PlowRope, leftChild: PlowRopeNode? = nil,
 		rightChild: PlowRopeNode? = nil
 	) {
-		data = .Parental(
+		data = .parental(
 			ParentalNode(
 				ownedBy: owner,
 				forContainer: self,
@@ -55,34 +55,34 @@ final class PlowRopeNode {
 	// Maybe: make this a macro
 	var count: Int {
 		switch data! {
-		case .Leaf(let content):
+		case .leaf(let content):
 			return content.count
-		case .Parental(let children):
+		case .parental(let children):
 			return children.count
 		}
 	}
 	var owner: PlowRope {
 		switch data! {
-		case .Leaf(let leaf):
+		case .leaf(let leaf):
 			return leaf.owner
-		case .Parental(let parent):
+		case .parental(let parent):
 			return parent.owner
 		}
 	}
 	var parent: ParentalNode? {
 		get {
 			switch data! {
-			case .Leaf(let node):
+			case .leaf(let node):
 				return node.parent
-			case .Parental(let node):
+			case .parental(let node):
 				return node.parent
 			}
 		}
 		set {
 			switch data! {
-			case .Leaf(let node):
+			case .leaf(let node):
 				node.parent = newValue
-			case .Parental(let node):
+			case .parental(let node):
 				node.parent = newValue
 			}
 		}
@@ -90,9 +90,9 @@ final class PlowRopeNode {
 
 	var height: Int {
 		switch data! {
-		case .Leaf(let leaf):
+		case .leaf(let leaf):
 			return leaf.height
-		case .Parental(let parent):
+		case .parental(let parent):
 			return parent.height
 		}
 	}
@@ -103,25 +103,25 @@ final class PlowRopeNode {
 	/// If error handling is needed, use pattern matching on the `data` property
 	/// instead.
 	func asParental() -> PlowRopeNode.ParentalNode {
-		guard case .Parental(let node) = self.data else {
+		guard case .parental(let node) = self.data else {
 			preconditionFailure("Attempted to use a leaf node as a parental node.")
 		}
 		return node
 	}
 	/// Obtain the leaf node corresponding to this node. A crash occurs if this
-	/// method is called on a leaf.
+	/// method is called on a parental node.
 	///
 	/// If error handling is needed, use pattern matching on the `data` property
 	/// instead.
 	func asLeaf() -> PlowRopeNode.LeafNode {
-		guard case .Leaf(let node) = self.data else {
+		guard case .leaf(let node) = self.data else {
 			preconditionFailure("Attempted to use a parental node as a leaf node.")
 		}
 		return node
 	}
 
 	func isRightChildOf(_ node: PlowRopeNode) -> Bool {
-		if case .Parental(let data) = node.data,
+		if case .parental(let data) = node.data,
 			data.right === self
 		{
 			return true
@@ -135,7 +135,7 @@ final class PlowRopeNode {
 		return false
 	}
 	func isLeftChildOf(_ node: PlowRopeNode) -> Bool {
-		if case .Parental(let data) = node.data,
+		if case .parental(let data) = node.data,
 			data.left === self
 		{
 			return true
