@@ -393,7 +393,7 @@ public class PlowRope /* : BidirectionalCollection */ {
 		var cidx = index
 		var parent: PlowRopeNode.ParentalNode!
 		var pidx: Int!
-		while case .Parental(let children) = current.data {
+		while case .parental(let children) = current.data {
 			parent = children
 			pidx = cidx
 			if cidx <= children.left.count {
@@ -494,7 +494,7 @@ public class PlowRope /* : BidirectionalCollection */ {
 
 		var current = root.container
 		var cidx = index
-		while case .Parental(let children) = current.data {
+		while case .parental(let children) = current.data {
 			if cidx < children.left.count {
 				current = children.left
 			} else {
