@@ -35,9 +35,9 @@ final class PlowRopeNode {
 	/// `leftChild` and `rightChild` parameters. In that case, empty leaves will
 	/// take their place.
 	///
-	/// The new node's `count` property is set automatically based on the
-	/// children supplied. If you manually make changes to the children, you
-	/// must update the `count` property yourself.
+	/// The new node's `count` and `height` properties are set automatically
+	/// based on the children supplied. If you manually make changes to the
+	/// children, you must update these properties yourself.
 	init(
 		ownedBy owner: PlowRope, leftChild: PlowRopeNode? = nil,
 		rightChild: PlowRopeNode? = nil
@@ -85,6 +85,15 @@ final class PlowRopeNode {
 			case .Parental(let node):
 				node.parent = newValue
 			}
+		}
+	}
+
+	var height: Int {
+		switch data! {
+		case .Leaf(let leaf):
+			return leaf.height
+		case .Parental(let parent):
+			return parent.height
 		}
 	}
 
@@ -146,6 +155,7 @@ final class PlowRopeNode {
 		weak var parent: ParentalNode?
 
 		var count: Int
+		var height: Int
 		var left: PlowRopeNode
 		var right: PlowRopeNode
 
@@ -162,6 +172,7 @@ final class PlowRopeNode {
 			self.left = leftChild
 			self.right = rightChild
 			self.count = leftChild.count + rightChild.count
+			self.height = max(leftChild.height, rightChild.height) + 1
 			self.balanceFactor = 0
 		}
 
@@ -272,6 +283,10 @@ final class PlowRopeNode {
 		unowned let owner: PlowRope
 		unowned let container: PlowRopeNode
 		weak var parent: ParentalNode?
+
+		var height: Int {
+			0
+		}
 
 		var count: Int {
 			content.count
