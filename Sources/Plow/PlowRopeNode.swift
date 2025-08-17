@@ -266,7 +266,7 @@ struct PlowRopeNode {
 		// in rotation methods below.
 
 		// https://en.wikipedia.org/wiki/File:AVL-simple-left_K.svg
-		mutating func rotateLeft() -> ParentalNode {
+		@discardableResult mutating func rotateLeft() -> ParentalNode {
 			var z = self.right.asParental()
 			assert(z.balanceFactor >= 0)
 
@@ -295,7 +295,7 @@ struct PlowRopeNode {
 		}
 
 		// https://en.wikipedia.org/wiki/File:AVL-simple-left_K.svg
-		mutating func rotateRight() -> ParentalNode {
+		@discardableResult mutating func rotateRight() -> ParentalNode {
 			var z = self.left.asParental()
 			assert(z.balanceFactor <= 0)
 
@@ -323,7 +323,7 @@ struct PlowRopeNode {
 		}
 
 		// https://commons.wikimedia.org/wiki/File:AVL-double-rl_K.svg
-		mutating func rotateLeftRight() -> ParentalNode {
+		@discardableResult mutating func rotateLeftRight() -> ParentalNode {
 			var z = self.left.asParental()
 			assert(z.balanceFactor > 0)
 
@@ -332,7 +332,7 @@ struct PlowRopeNode {
 		}
 
 		// https://commons.wikimedia.org/wiki/File:AVL-double-rl_K.svg
-		mutating func rotateRightLeft() -> ParentalNode {
+		@discardableResult mutating func rotateRightLeft() -> ParentalNode {
 			var z = self.right.asParental()
 			assert(z.balanceFactor < 0)
 
