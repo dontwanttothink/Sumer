@@ -13,8 +13,9 @@ struct PlowRopeNode {
 
 	var data: Data!
 
-	/// Creates a new leaf.
+	/// Creates a new leaf. `content.count` must not exceed `maxLeafCount`.
 	init(content: String) {
+		assert(content.count <= Self.maxLeafCount)
 		data = .leaf(LeafNode(content))
 	}
 

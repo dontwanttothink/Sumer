@@ -1,22 +1,24 @@
 extension String {
-	func inserted<C>(
-		contentsOf newElements: C,
-		at i: Index,
-		withLimit limit: Int,
-	) -> (String, String?)
-	where C: Collection, Self.Element == C.Element {
-		var new = self
-		new.insert(contentsOf: newElements, at: i)
+	func splitIntoGraphemeParts(of length: Int) -> [Substring] {
+		guard length > 0 else { return [] }
 
-		if new.count > limit {
-			let border = new.index(new.startIndex, offsetBy: limit)
-			return (String(new[..<border]), String(new[border...]))
+		var parts: [Substring] = []
+		var currentIndex = startIndex
+
+		while currentIndex < endIndex {
+			let nextIndex =
+				index(currentIndex, offsetBy: length, limitedBy: endIndex)
+				?? endIndex
+			parts.append(self[currentIndex..<nextIndex])
+			currentIndex = nextIndex
 		}
-		return (new, nil)
+
+		return parts
 	}
 }
 
-public final class PlowRope /* : BidirectionalCollection */ {
+public struct PlowRope: BidirectionalCollection {
+	public typealias Index = Int
 	public let startIndex = 0
 	public var endIndex: Int {
 		count - 1
@@ -40,13 +42,34 @@ public final class PlowRope /* : BidirectionalCollection */ {
 	}
 	private var _root: PlowRopeNode!
 
-	public convenience init() {
-		try! self.init(for: "")
+	public init() {
+		self.init(for: "")
 	}
-	public init(for str: String) throws {
-		self._root = PlowRopeNode(
-			leftChild: PlowRopeNode(content: str)
+	public init(for str: String) {
+		let parts = str.splitIntoGraphemeParts(
+			of: PlowRopeNode.maxLeafCount
 		)
+		func getRoot(forParts parts: ArraySlice<Substring>) -> PlowRopeNode.ParentalNode {
+			guard parts.count > 2 else {
+				assert(!parts.isEmpty)
+				return PlowRopeNode(
+					leftChild: PlowRopeNode(
+						content: String(parts[0])
+					),
+					rightChild: PlowRopeNode(
+						content: parts.count == 2 ? String(parts[1]) : ""
+					)
+				).asParental()
+			}
+
+			let half = (parts.count / 2)
+			return PlowRopeNode(
+				leftChild: getRoot(forParts: parts[..<half]).container,
+				rightChild: getRoot(forParts: parts[half...]).container
+			).asParental()
+		}
+
+		self.root = getRoot(forParts: parts[...])
 	}
 
 	init(withRoot root: PlowRopeNode.ParentalNode) {
@@ -60,7 +83,7 @@ public final class PlowRope /* : BidirectionalCollection */ {
 	/// ``newInternode(at:)``.
 	// The subtree 'new' must be already in AVL shape. Its height must have
 	// increased by one. This is also a loop invariant.
-	private func insertionFixup(dueTo new: PlowRopeNode.ParentalNode) {
+	private mutating func insertionFixup(dueTo new: PlowRopeNode.ParentalNode) {
 		var z = new
 		while var x = z.parent {
 			var n: PlowRopeNode.ParentalNode
@@ -152,7 +175,7 @@ public final class PlowRope /* : BidirectionalCollection */ {
 	/// Performs manipulations to fix imbalances caused by a deletion.
 	///
 	/// - Parameter shortened: Parental node returned by `deleteLeaf(at:)`.
-	private func deletionFixup(dueTo shortened: PlowRopeNode.ParentalNode) {
+	private mutating func deletionFixup(dueTo shortened: PlowRopeNode.ParentalNode) {
 		var n = shortened
 		var p = shortened.parent
 		while var x = p {
@@ -222,7 +245,7 @@ public final class PlowRope /* : BidirectionalCollection */ {
 	///
 	/// - Returns: The deleted leaf's sibling's parent after the tree
 	/// manipulation, which might not have changed.
-	private func deleteLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
+	private mutating func deleteLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
 		precondition(index >= 0 && index < self.count, "Index out of bounds")
 
 		var current = root.container
@@ -370,7 +393,7 @@ public final class PlowRope /* : BidirectionalCollection */ {
 			)
 		}
 
-		let out = PlowRope()
+		var out = PlowRope()
 		out._root = PlowRopeNode(
 			leftChild: left.root.container,
 			rightChild: right.root.container,
@@ -383,10 +406,17 @@ public final class PlowRope /* : BidirectionalCollection */ {
 	}
 
 	public func insert<C>(contentsOf newElements: C)
-	where C: Collection /* , C.Element == Self.Element */ {}
+	where C: Collection, C.Element == Self.Element {}
 
 	// we can implement large insertions through a split
 	// and two joins.
+
+	public func index(after i: Int) -> Int {
+		i + 1
+	}
+	public func index(before i: Int) -> Int {
+		i - 1
+	}
 }
 
 // Bibliography:
