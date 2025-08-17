@@ -9,15 +9,23 @@ let package = Package(
 		.macOS(.v26)
 	],
 	targets: [
-		.target(name: "Plow", path: "Sources/Plow"),
 		.target(
 			name: "BridgedC",
 			path: "Sources/C",
 			publicHeadersPath: "include"
 		),
+		.target(
+			name: "Plow",
+			swiftSettings: [
+				.strictMemorySafety()
+			]
+		),
 		.executableTarget(
 			name: "Sumer",
-			dependencies: ["BridgedC", "Plow"]
+			dependencies: ["BridgedC", "Plow"],
+			swiftSettings: [
+				.strictMemorySafety()
+			]
 		),
 		.testTarget(name: "SumerTests", dependencies: ["Sumer"], path: "Tests"),
 	]

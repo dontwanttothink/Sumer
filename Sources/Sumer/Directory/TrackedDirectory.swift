@@ -2,9 +2,10 @@ import BridgedC
 import SwiftUI
 
 /// A `TrackedDirectory` connects a `ProjectView` to the file system.
-@Observable class TrackedDirectory {
+// hopefully safe? however likely not, which is a bug
+@safe @Observable class TrackedDirectory {
 
-	final class FSEventStreamBox {
+	@unsafe final class FSEventStreamBox {
 		private let stream: FSEventStreamRef
 		private var context: UnsafeMutablePointer<FSEventStreamContext>
 
@@ -18,20 +19,21 @@ import SwiftUI
 				eventIDs: UnsafePointer<FSEventStreamEventId>
 			) in
 
-			let info = clientCallbackInfo!
-			let tracked = Unmanaged<TrackedDirectory>.fromOpaque(info)
+			let info = unsafe clientCallbackInfo!
+			let tracked = unsafe Unmanaged<TrackedDirectory>.fromOpaque(info)
 				.takeUnretainedValue()
 
-			let flags = Array(
+			let flags = unsafe Array(
 				UnsafeBufferPointer(start: eventFlags, count: eventsCount))
-			let ids = Array(UnsafeBufferPointer(start: eventIDs, count: eventsCount))
+			let ids = unsafe Array(
+				UnsafeBufferPointer(start: eventIDs, count: eventsCount))
 
-			let pathsPointer = UnsafeRawPointer(eventPaths).assumingMemoryBound(
+			let pathsPointer = unsafe UnsafeRawPointer(eventPaths).assumingMemoryBound(
 				to: UnsafePointer<CChar>.self)
-			let pathsBuffer = UnsafeBufferPointer(
+			let pathsBuffer = unsafe UnsafeBufferPointer(
 				start: pathsPointer, count: eventsCount)
-			let eventURLs = pathsBuffer.map {
-				URL(fileURLWithPath: String(cString: $0))
+			let eventURLs = unsafe pathsBuffer.map {
+				URL(fileURLWithPath: unsafe String(cString: $0))
 			}
 
 			for i in (0..<eventsCount) {
@@ -46,9 +48,9 @@ import SwiftUI
 			info: UnsafeMutableRawPointer?,
 			pathsToWatch: [URL]
 		) {
-			self.context = UnsafeMutablePointer<FSEventStreamContext>.allocate(
+			unsafe self.context = UnsafeMutablePointer<FSEventStreamContext>.allocate(
 				capacity: 1)
-			context.initialize(
+			unsafe context.initialize(
 				to: FSEventStreamContext(
 					version: CFIndex(0),
 
@@ -72,10 +74,11 @@ import SwiftUI
 			let pathsAsCFString: [CFString] = pathsToWatch.map { $0.path as CFString }
 
 			// Memory correctness: see below
-			var rawPointersToPathsAsCFString: [UnsafeRawPointer?] = pathsAsCFString.map
-			{
-				UnsafeRawPointer(Unmanaged.passUnretained($0).toOpaque())
-			}
+			var rawPointersToPathsAsCFString: [UnsafeRawPointer?] =
+				unsafe pathsAsCFString.map {
+					unsafe UnsafeRawPointer(
+						Unmanaged.passUnretained($0).toOpaque())
+				}
 
 			// "The retain callback is used within this function, for example,
 			// to retain all of the new values from the values C array."
@@ -87,11 +90,11 @@ import SwiftUI
 			// https://developer.apple.com/documentation/corefoundation/cfarraycreate(_:_:_:_:)
 
 			let pathsToWatch =
-				rawPointersToPathsAsCFString.withUnsafeMutableBufferPointer {
+				unsafe rawPointersToPathsAsCFString.withUnsafeMutableBufferPointer {
 					buffer in
-					withUnsafePointer(to: kCFTypeArrayCallBacks) {
+					unsafe withUnsafePointer(to: kCFTypeArrayCallBacks) {
 						callbacksPtr in
-						CFArrayCreate(
+						unsafe CFArrayCreate(
 							kCFAllocatorDefault,
 							buffer.baseAddress,
 							buffer.count,
@@ -100,7 +103,7 @@ import SwiftUI
 					}
 				}
 
-			self.stream = FSEventStreamCreate(
+			unsafe self.stream = FSEventStreamCreate(
 				kCFAllocatorDefault, callback, context, pathsToWatch,
 				FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
 				CFTimeInterval(1.0),
@@ -112,16 +115,16 @@ import SwiftUI
 			// We need to modify an Observable, and the tree operations are
 			// (supposed to be) fast. Thus, the callback is called on the main
 			// thread.
-			FSEventStreamSetDispatchQueue(stream, DispatchQueue.main)
-			FSEventStreamStart(stream)
+			unsafe FSEventStreamSetDispatchQueue(stream, DispatchQueue.main)
+			unsafe FSEventStreamStart(stream)
 		}
 		deinit {
-			FSEventStreamStop(stream)
-			FSEventStreamInvalidate(stream)
-			FSEventStreamRelease(stream)
+			unsafe FSEventStreamStop(stream)
+			unsafe FSEventStreamInvalidate(stream)
+			unsafe FSEventStreamRelease(stream)
 
-			context.deinitialize(count: 1)
-			context.deallocate()
+			unsafe context.deinitialize(count: 1)
+			unsafe context.deallocate()
 		}
 	}
 
@@ -163,13 +166,13 @@ import SwiftUI
 		}
 		self.root = root
 
-		self.fd = open(url.path, O_EVTONLY | O_RDONLY)
+		self.fd = unsafe open(url.path, O_EVTONLY | O_RDONLY)
 		if fd < 0 {
 			let code = errno
-			throw InitError(code: code, message: String(cString: strerror(code)))
+			throw InitError(code: code, message: unsafe String(cString: strerror(code)))
 		}
 
-		self.fsEventStream = FSEventStreamBox(
+		unsafe self.fsEventStream = FSEventStreamBox(
 			info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
 			pathsToWatch: [url]
 		)
@@ -237,19 +240,19 @@ import SwiftUI
 
 	private func respondToRootChanged() {
 		let buffer = UnsafeMutableBufferPointer<CChar>.allocate(capacity: Int(PATH_MAX))
-		defer { buffer.deallocate() }
+		defer { unsafe buffer.deallocate() }
 		let rawPointer = UnsafeMutableRawPointer(buffer.baseAddress)
 
-		let result = getpath_fcntl(fd, rawPointer)
+		let result = unsafe getpath_fcntl(fd, rawPointer)
 		if result < 0 {
 			fatalError("URGENT TODO: Handle this condition")
 		}
 
-		self.root.url = URL(fileURLWithPath: String(cString: buffer.baseAddress!))
+		self.root.url = unsafe URL(fileURLWithPath: String(cString: buffer.baseAddress!))
 		guard case .NonLeaf(let children) = self.root.kind else {
 			fatalError("invariant unsatisfied")
 		}
-		self.fsEventStream = FSEventStreamBox(
+		unsafe self.fsEventStream = FSEventStreamBox(
 			info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
 			pathsToWatch: [url]
 		)
