@@ -27,6 +27,6 @@ let package = Package(
 				.strictMemorySafety()
 			]
 		),
-		.testTarget(name: "SumerTests", dependencies: ["Sumer"], path: "Tests"),
+		.testTarget(name: "PlowTests", dependencies: ["Plow"], path: "Tests/Plow"),
 	]
 )
