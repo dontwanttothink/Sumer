@@ -19,28 +19,15 @@ extension String {
 
 public struct PlowRope: BidirectionalCollection {
 	public typealias Index = Int
-	public let startIndex = 0
-	public var endIndex: Int {
-		count - 1
-	}
-
-	public var count: Int {
-		root.count
-	}
+	public var startIndex: Int { 0 }
+	public var endIndex: Int { count - 1 }
+	public var count: Int { root.count }
 
 	/// The root is never a leaf node.
 	///
 	/// The setter for this property stores a strong reference to the
 	/// ``PlowRopeNode/ParentalNode``'s' `.container` property.
-	var root: PlowRopeNode.ParentalNode {
-		get {
-			_root.asParental()
-		}
-		set {
-			_root = newValue.container
-		}
-	}
-	private var _root: PlowRopeNode!
+	private var root: PlowRopeNode.ParentalNode
 
 	public init() {
 		self.init(for: "")
@@ -76,6 +63,50 @@ public struct PlowRope: BidirectionalCollection {
 		self.root = root
 	}
 
+	private mutating func onModify() {
+		if !isKnownUniquelyReferenced(&root) {
+			root = root.copy()
+		}
+	}
+
+	private func getLeaf(at index: Int) -> (PlowRopeNode.LeafNode, Int) {
+		var current = root.container
+		var cidx = index
+		while case .parental(let children) = current.data {
+			if cidx <= children.left.count {
+				current = children.left
+			} else {
+				cidx -= children.left.count
+				current = children.right
+			}
+		}
+		return (current.asLeaf(), index - cidx)
+	}
+
+	/// Inserts a new internode (non-content) suitable for large text insertion
+	/// at `index`.
+	///
+	/// The leaf containing the character at `index` is replaced with an
+	/// internode; the leaf is moved to its left child. The resulting tree may
+	/// not be balanced. Sizes remain correct.
+	///
+	/// - Returns: The inserted internode.
+	private func insertInternode(at index: Int) -> PlowRopeNode.ParentalNode {
+		precondition(index >= 0 && index < self.count, "Index out of bounds")
+
+		let oldLeaf = getLeaf(at: index).0.container
+		var new = PlowRopeNode(leftChild: oldLeaf)
+		new.parent = oldLeaf.parent
+
+		let parent = oldLeaf.parent!
+		if oldLeaf.isLeftChildOf(parent) {
+			parent.left = new
+		} else {
+			parent.right = new
+		}
+		return new.asParental()
+	}
+
 	/// Performs manipulations on the tree to fix imbalances after an internode
 	/// insertion. Counts and heights stored remain correct.
 	///
@@ -85,7 +116,7 @@ public struct PlowRope: BidirectionalCollection {
 	// increased by one. This is also a loop invariant.
 	private mutating func insertionFixup(dueTo new: PlowRopeNode.ParentalNode) {
 		var z = new
-		while var x = z.parent {
+		while let x = z.parent {
 			var n: PlowRopeNode.ParentalNode
 			var g: PlowRopeNode.ParentalNode?
 
@@ -122,7 +153,7 @@ public struct PlowRope: BidirectionalCollection {
 				}
 			}
 			n.parent = g
-			if var g {
+			if let g {
 				if x.container.isLeftChildOf(g) {
 					g.left = n.container
 				} else {
@@ -134,25 +165,20 @@ public struct PlowRope: BidirectionalCollection {
 		}
 	}
 
-	/// Inserts a new internode (non-content) suitable for large text insertion
-	/// at `index`.
+	/// Deletes the leaf containing the character at the position `index`. To
+	/// keep a valid tree structure, the sibling of the deleted leaf may take
+	/// the place of its old parent, or move from being its right child to
+	/// being its left child.
 	///
-	/// The leaf containing the character at `index` is replaced with an
-	/// internode; the leaf is moved to its left child. The resulting tree may
-	/// not be balanced. Sizes remain correct.
-	///
-	/// - Returns: The inserted internode.
-	private func insertInternode(at index: Int) -> PlowRopeNode.ParentalNode {
+	/// - Returns: The deleted leaf's sibling's parent after the tree
+	/// manipulation, which might not have changed.
+	private mutating func deleteLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
 		precondition(index >= 0 && index < self.count, "Index out of bounds")
 
 		var current = root.container
 		var cidx = index
-		var parent: PlowRopeNode.ParentalNode!
-		var pidx: Int!
 		while case .parental(let children) = current.data {
-			parent = children
-			pidx = cidx
-			if cidx <= children.left.count {
+			if cidx < children.left.count {
 				current = children.left
 			} else {
 				cidx -= children.left.count
@@ -160,16 +186,32 @@ public struct PlowRope: BidirectionalCollection {
 			}
 		}
 
-		var new = PlowRopeNode(leftChild: current)
-		new.parent = parent
-		current.parent = new.asParental()
+		let leaf = current
+		let parent = leaf.parent!
 
-		if pidx <= parent.left.count {
-			parent.left = new
+		var sibling =
+			if leaf.isLeftChildOf(parent) {
+				parent.right
+			} else {
+				parent.left
+			}
+
+		if let grandparent = sibling.parent!.parent {
+			if parent.container.isLeftChildOf(grandparent) {
+				grandparent.left = sibling
+			} else {
+				grandparent.right = sibling
+			}
+			sibling.parent = grandparent
+
+			return grandparent
 		} else {
-			parent.right = new
+			root.left = sibling
+			root.right = PlowRopeNode(content: "")
+			sibling.parent = root
+
+			return root
 		}
-		return new.asParental()
 	}
 
 	/// Performs manipulations to fix imbalances caused by a deletion.
@@ -178,7 +220,7 @@ public struct PlowRope: BidirectionalCollection {
 	private mutating func deletionFixup(dueTo shortened: PlowRopeNode.ParentalNode) {
 		var n = shortened
 		var p = shortened.parent
-		while var x = p {
+		while let x = p {
 			let g = x.parent
 
 			var b: Int
@@ -220,7 +262,7 @@ public struct PlowRope: BidirectionalCollection {
 				}
 			}
 			n.parent = g
-			if var g {
+			if let g {
 				if x.container.isLeftChildOf(g) {
 					g.left = n.container
 				} else {
@@ -238,60 +280,12 @@ public struct PlowRope: BidirectionalCollection {
 		}
 	}
 
-	/// Deletes the leaf containing the character at the position `index`. To
-	/// keep a valid tree structure, the sibling of the deleted leaf may take
-	/// the place of its old parent, or move from being its right child to
-	/// being its left child.
-	///
-	/// - Returns: The deleted leaf's sibling's parent after the tree
-	/// manipulation, which might not have changed.
-	private mutating func deleteLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
-		precondition(index >= 0 && index < self.count, "Index out of bounds")
-
-		var current = root.container
-		var cidx = index
-		while case .parental(let children) = current.data {
-			if cidx < children.left.count {
-				current = children.left
-			} else {
-				cidx -= children.left.count
-				current = children.right
-			}
-		}
-
-		let leaf = current
-		let parent = leaf.parent!
-
-		var sibling =
-			if leaf.isLeftChildOf(parent) {
-				parent.right
-			} else {
-				parent.left
-			}
-
-		if var grandparent = sibling.parent!.parent {
-			if parent.container.isLeftChildOf(grandparent) {
-				grandparent.left = sibling
-			} else {
-				grandparent.right = sibling
-			}
-			sibling.parent = grandparent
-
-			return grandparent
-		} else {
-			root.left = sibling
-			root.right = PlowRopeNode(content: "")
-			sibling.parent = root
-
-			return root
-		}
-	}
-
 	public func split() {
 	}
 
 	private func joinLeft(
-		left: PlowRopeNode.ParentalNode, right: PlowRopeNode.ParentalNode
+		left: consuming PlowRopeNode.ParentalNode,
+		right: consuming PlowRopeNode.ParentalNode
 	) -> PlowRopeNode.ParentalNode {
 		// 'right' is too tall: two or more levels taller.
 
@@ -311,7 +305,7 @@ public struct PlowRope: BidirectionalCollection {
 				return PlowRopeNode(
 					leftChild: left.left,
 					rightChild: {
-						var r = glueChild.asParental()
+						let r = glueChild.asParental()
 						r.rotateLeft()
 						return r
 					}().container
@@ -321,7 +315,7 @@ public struct PlowRope: BidirectionalCollection {
 			// right.left's height is still at least two more than left's
 
 			let glueChild = joinLeft(left: left, right: right.left.asParental())
-			var glueChildChild = PlowRopeNode(
+			let glueChildChild = PlowRopeNode(
 				leftChild: glueChild.container, rightChild: right.container
 			).asParental()
 
@@ -333,7 +327,8 @@ public struct PlowRope: BidirectionalCollection {
 		}
 	}
 	private func joinRight(
-		left: PlowRopeNode.ParentalNode, right: PlowRopeNode.ParentalNode
+		left: consuming PlowRopeNode.ParentalNode,
+		right: consuming PlowRopeNode.ParentalNode
 	) -> PlowRopeNode.ParentalNode {
 		// 'left' is too tall: two or more levels taller.
 
@@ -352,7 +347,7 @@ public struct PlowRope: BidirectionalCollection {
 				return PlowRopeNode(
 					leftChild: left.left,
 					rightChild: {
-						var r = glueChild.asParental()
+						let r = glueChild.asParental()
 						r.rotateRight()
 						return r
 					}().container,
@@ -362,7 +357,7 @@ public struct PlowRope: BidirectionalCollection {
 			// left.right's height is still at least two more than right's
 
 			let glueChild = joinRight(left: left.right.asParental(), right: right)
-			var glueChildChild = PlowRopeNode(
+			let glueChildChild = PlowRopeNode(
 				leftChild: left.container, rightChild: glueChild.container
 			).asParental()
 
@@ -373,7 +368,8 @@ public struct PlowRope: BidirectionalCollection {
 			}
 		}
 	}
-	public func join(left: PlowRope, right: PlowRope) -> PlowRope {
+	public consuming func join(with right: consuming PlowRope) -> PlowRope {
+		let left = self
 		if left.root.height > right.root.height + 1 {
 			return PlowRope(
 				withRoot:
@@ -394,15 +390,17 @@ public struct PlowRope: BidirectionalCollection {
 		}
 
 		var out = PlowRope()
-		out._root = PlowRopeNode(
+		out.root = PlowRopeNode(
 			leftChild: left.root.container,
 			rightChild: right.root.container,
-		)
+		).asParental()
 		return out
 	}
 
 	public subscript(index: Int) -> Character {
-		return "a"
+		let (leaf, start) = getLeaf(at: index)
+		let content = leaf.content
+		return content[content.index(content.startIndex, offsetBy: index - start)]
 	}
 
 	public func insert<C>(contentsOf newElements: C)
