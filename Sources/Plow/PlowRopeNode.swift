@@ -192,7 +192,7 @@ struct PlowRopeNode {
 		}
 
 		// MARK: Implement operations
-		private func updateCount() {
+		func updateCount() {
 			self.count = self.right.count + self.left.count
 		}
 		private func updateHeight() {
