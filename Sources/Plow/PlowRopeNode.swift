@@ -1,8 +1,4 @@
 /// A node inside a ``PlowRope``.
-// This structure does not contain any data directly. Instead, its `data`
-// property holds a CoW structure that owns an instance of
-// `PlowRope.ParentalNodeData` or `PlowRope.LeafNodeData` with the actual node
-// data.
 struct PlowRopeNode {
 	public static let maxLeafCount = 1_000_000
 
@@ -23,9 +19,7 @@ struct PlowRopeNode {
 	/// `leftChild` and `rightChild` parameters. In that case, empty leaves will
 	/// take their place.
 	///
-	/// This initializer sets the  `parent` property on any passed children,
-	/// which may incur an expensive copy unless you indicate that they be
-	/// consumed using the `consume` Swift keyword.
+	/// This initializer sets the  `parent` property on any passed children.
 	///
 	/// The new node's `count`, `height` and `balanceFactor` properties are set
 	/// automatically based on the children supplied. If you manually make
@@ -66,9 +60,9 @@ struct PlowRopeNode {
 		}
 		set {
 			switch data! {
-			case .leaf(var node):
+			case .leaf(let node):
 				node.parent = newValue
-			case .parental(var node):
+			case .parental(let node):
 				node.parent = newValue
 			}
 		}
@@ -164,9 +158,7 @@ struct PlowRopeNode {
 		return false
 	}
 
-	struct ParentalNode {
-		fileprivate var data: ParentalNodeData
-
+	final class ParentalNode {
 		var container: PlowRopeNode {
 			PlowRopeNode(withData: .parental(self))
 		}
@@ -177,87 +169,40 @@ struct PlowRopeNode {
 			leftChild: PlowRopeNode,
 			rightChild: PlowRopeNode
 		) {
-			self.data = ParentalNodeData(leftChild: leftChild, rightChild: rightChild)
+			self.left = leftChild
+			self.right = rightChild
+
+			self.count = leftChild.count + rightChild.count
+			self.height = max(leftChild.height, rightChild.height) + 1
+			self.balanceFactor = -leftChild.height + rightChild.height
 		}
 
-		fileprivate init(withData data: ParentalNodeData) {
-			self.data = data
-		}
+		weak var parent: ParentalNode?
 
-		private mutating func onWrite() {
-			if !isKnownUniquelyReferenced(&data) {
-				data = data.copy()
-			}
-		}
+		var count: Int
+		var height: Int
+		var left: PlowRopeNode
+		var right: PlowRopeNode
 
-		// MARK: Expose the underlying data structure's properties
-		var parent: ParentalNode? {
-			get {
-				guard let p = data.parent else {
-					return nil
-				}
-				return ParentalNode(withData: p)
-			}
-			set {
-				onWrite()
-				data.parent = newValue?.data
-			}
-		}
-
-		var count: Int {
-			get { data.count }
-			set {
-				onWrite()
-				data.count = newValue
-			}
-		}
-		var height: Int {
-			get { data.height }
-			set {
-				onWrite()
-				data.height = newValue
-			}
-		}
-		var left: PlowRopeNode {
-			get { data.left }
-			set {
-				onWrite()
-				data.left = newValue
-			}
-		}
-		var right: PlowRopeNode {
-			get { data.right }
-			set {
-				onWrite()
-				data.right = newValue
-			}
-		}
-
-		var balanceFactor: Int {
-			get { data.balanceFactor }
-			set {
-				onWrite()
-				data.balanceFactor = newValue
-			}
-		}
+		var balanceFactor: Int
 
 		// MARK: Define reference equality
 		func isIdentical(to other: ParentalNode) -> Bool {
-			data === other.data
+			self === other
 		}
 
 		// MARK: Implement operations
-		private mutating func updateCount() {
+		private func updateCount() {
 			self.count = self.right.count + self.left.count
 		}
-		private mutating func updateHeight() {
+		private func updateHeight() {
 			self.height = max(self.left.height, self.right.height) + 1
 		}
-		private mutating func updateBalanceFactor() {
+		private func updateBalanceFactor() {
 			self.balanceFactor = -self.left.height + self.right.height
 		}
 
-		mutating func recomputeProperties() {
+		func recomputeProperties() {
 			updateCount()
 			updateHeight()
 			updateBalanceFactor()
@@ -267,8 +212,8 @@ struct PlowRopeNode {
 		// in rotation methods below.
 
 		// https://en.wikipedia.org/wiki/File:AVL-simple-left_K.svg
-		@discardableResult mutating func rotateLeft() -> ParentalNode {
-			var z = self.right.asParental()
+		@discardableResult func rotateLeft() -> ParentalNode {
+			let z = self.right.asParental()
 			assert(z.balanceFactor >= 0)
 
 			var inner = z.left
@@ -296,8 +241,8 @@ struct PlowRopeNode {
 		}
 
 		// https://en.wikipedia.org/wiki/File:AVL-simple-left_K.svg
-		@discardableResult mutating func rotateRight() -> ParentalNode {
-			var z = self.left.asParental()
+		@discardableResult func rotateRight() -> ParentalNode {
+			let z = self.left.asParental()
 			assert(z.balanceFactor <= 0)
 
 			var inner = z.right
@@ -324,8 +269,8 @@ struct PlowRopeNode {
 		}
 
 		// https://commons.wikimedia.org/wiki/File:AVL-double-rl_K.svg
-		@discardableResult mutating func rotateLeftRight() -> ParentalNode {
-			var z = self.left.asParental()
+		@discardableResult func rotateLeftRight() -> ParentalNode {
+			let z = self.left.asParental()
 			assert(z.balanceFactor > 0)
 
 			_ = z.rotateLeft()
@@ -333,103 +278,22 @@ struct PlowRopeNode {
 		}
 
 		// https://commons.wikimedia.org/wiki/File:AVL-double-rl_K.svg
-		@discardableResult mutating func rotateRightLeft() -> ParentalNode {
-			var z = self.right.asParental()
+		@discardableResult func rotateRightLeft() -> ParentalNode {
+			let z = self.right.asParental()
 			assert(z.balanceFactor < 0)
 
 			_ = z.rotateRight()
 			return self.rotateLeft()
 		}
-	}
 
-	final fileprivate class ParentalNodeData {
-		weak var parent: ParentalNodeData?
-
-		var count: Int
-		var height: Int
-		var left: PlowRopeNode
-		var right: PlowRopeNode
-
-		var balanceFactor: Int
-
-		init(
-			leftChild: PlowRopeNode,
-			rightChild: PlowRopeNode
-		) {
-			self.left = leftChild
-			self.right = rightChild
-
-			self.count = leftChild.count + rightChild.count
-			self.height = max(leftChild.height, rightChild.height) + 1
-			self.balanceFactor = -leftChild.height + rightChild.height
-		}
-
-		func copy() -> ParentalNodeData {
-			ParentalNodeData(leftChild: left, rightChild: right)
+		func copy() -> ParentalNode {
+			ParentalNode(leftChild: left, rightChild: right)
 		}
 	}
 
 	/// A leaf node.
-	struct LeafNode {
-		fileprivate var data: LeafNodeData
-
-		init(_ content: String) {
-			self.init(content, withParent: nil)
-		}
-
-		init(
-			_ content: String,
-			withParent parent: ParentalNode?
-		) {
-			self.data = LeafNodeData(content, withParent: parent?.data)
-		}
-
-		func isIdentical(to other: LeafNode) -> Bool {
-			data === other.data
-		}
-
-		private mutating func onWrite() {
-			if !isKnownUniquelyReferenced(&data) {
-				data = data.copy()
-			}
-		}
-
-		var container: PlowRopeNode {
-			PlowRopeNode(withData: .leaf(self))
-		}
-
-		/// Only a weak reference is kept to the parent.
-		var parent: ParentalNode? {
-			get {
-				guard let p = data.parent else {
-					return nil
-				}
-				return ParentalNode(withData: p)
-			}
-			set {
-				onWrite()
-				data.parent = newValue?.data
-			}
-		}
-
-		var height: Int {
-			data.height
-		}
-
-		var count: Int {
-			data.count
-		}
-		var content: String {
-			get { data.content }
-			set {
-				onWrite()
-				data.content = newValue
-			}
-		}
-	}
-
-	fileprivate final class LeafNodeData {
-		weak var parent: ParentalNodeData?
+	final class LeafNode {
+		weak var parent: ParentalNode?
 
 		var height: Int {
 			0
@@ -440,16 +304,27 @@ struct PlowRopeNode {
 		}
 		var content: String
 
+		var container: PlowRopeNode {
+			PlowRopeNode(withData: .leaf(self))
+		}
+
+		convenience init(_ content: String) {
+			self.init(content, withParent: nil)
+		}
 		init(
 			_ content: String,
-			withParent parent: ParentalNodeData?
+			withParent parent: ParentalNode?
 		) {
 			self.content = content
 			self.parent = parent
 		}
 
-		func copy() -> LeafNodeData {
-			LeafNodeData(content, withParent: parent)
+		func isIdentical(to other: LeafNode) -> Bool {
+			self === other
+		}
+
+		func copy() -> LeafNode {
+			LeafNode(content, withParent: parent)
 		}
 	}
 }
