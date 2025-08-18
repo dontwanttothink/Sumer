@@ -280,7 +280,37 @@ public struct PlowRope: BidirectionalCollection {
 		}
 	}
 
-	public func split() {
+	/// Update the tree such that the `index` supplied lies at the beginning
+	/// or end of a leaf node, rather than in the middle.
+	///
+	/// The resulting tree may not be balanced.
+	///
+	/// - Returns: the parent of the leaf containing `index`.
+	private func splitLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
+		let (leaf, pre) = getLeaf(at: index)
+		guard index != pre || index - pre != leaf.count else {
+			return leaf.parent
+		}
+
+		let parent = insertInternode(at: index)
+		let splitIndex = leaf.content.index(leaf.content.startIndex, offsetBy: index - pre)
+		let left = leaf.content[
+			..<splitIndex
+		]
+		let right = leaf.content[splitIndex...]
+		leaf.content = String(left)
+		parent.right.asLeaf().content = String(right)
+
+		return parent
+	}
+
+	public consuming func split(at index: Int) -> (PlowRope, PlowRope) {
+		func _split() -> (PlowRopeNode.ParentalNode, PlowRopeNode.ParentalNode) {
+		}
+
+		let pre = self.root.left.count
+		if index == pre {
+		}
 	}
 
 	private func joinLeft(
