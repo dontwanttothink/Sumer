@@ -293,7 +293,7 @@ struct PlowRopeNode {
 
 	/// A leaf node.
 	final class LeafNode {
-		weak var parent: ParentalNode?
+		weak var parent: ParentalNode!
 
 		var height: Int {
 			0
