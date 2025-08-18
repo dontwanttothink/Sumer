@@ -302,6 +302,11 @@ struct PlowRopeNode {
 		var count: Int {
 			content.count
 		}
+		/// The leaf's content.
+		///
+		/// If you update this property, you must update the leaf's parent's
+		/// `count`, for example, with `updateCount()`. You do not have to
+		/// update the leaf's `count`, because it is a computed property.
 		var content: String
 
 		var container: PlowRopeNode {
