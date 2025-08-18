@@ -306,11 +306,13 @@ public struct PlowRope: BidirectionalCollection {
 
 	public consuming func split(at index: Int) -> (PlowRope, PlowRope) {
 		func _split() -> (PlowRopeNode.ParentalNode, PlowRopeNode.ParentalNode) {
+			fatalError("lol")
 		}
 
 		let pre = self.root.left.count
 		if index == pre {
 		}
+		fatalError(":p")
 	}
 
 	private func joinLeft(
