@@ -17,7 +17,27 @@ extension String {
 	}
 }
 
-public struct PlowRope {
+extension ArraySlice {
+	subscript(relative index: Int) -> Element {
+		get {
+			let actualIndex = startIndex + index
+			return self[actualIndex]
+		}
+		set {
+			let actualIndex = startIndex + index
+			self[actualIndex] = newValue
+		}
+	}
+	subscript(safeRelative index: Int) -> Element? {
+		get {
+			guard index >= 0 && index < count else { return nil }
+			let actualIndex = startIndex + index
+			return self[actualIndex]
+		}
+	}
+}
+
+public struct PlowRope: ~Copyable {
 	/// The root is never a leaf node.
 	///
 	/// The setter for this property stores a strong reference to the
@@ -29,30 +49,28 @@ public struct PlowRope {
 	public init() {
 		self.init(for: "")
 	}
+	/// Complexity: Θ(n) (intended)
 	public init(for str: String) {
 		let parts = str.splitIntoGraphemeParts(
 			of: PlowRopeNode.maxLeafCount
 		)
-		func getRoot(forParts parts: ArraySlice<Substring>) -> PlowRopeNode.ParentalNode {
-			guard parts.count > 2 else {
-				return PlowRopeNode(
-					leftChild: PlowRopeNode(
-						content: 0 < parts.count ? String(parts[0]) : ""
-					),
-					rightChild: PlowRopeNode(
-						content: 1 < parts.count ? String(parts[1]) : ""
-					)
-				).asParental()
+		func getStructure(forParts parts: ArraySlice<Substring>) -> PlowRopeNode {
+			guard parts.count > 1 else {
+				return PlowRopeNode(content: String(parts[safeRelative: 0] ?? ""))
 			}
 
-			let half = (parts.count / 2)
+			let half = (parts.startIndex + parts.count / 2)
 			return PlowRopeNode(
-				leftChild: getRoot(forParts: parts[..<half]).container,
-				rightChild: getRoot(forParts: parts[half...]).container
-			).asParental()
+				leftChild: getStructure(forParts: parts[..<half]),
+				rightChild: getStructure(forParts: parts[half...])
+			)
 		}
 
-		self.root = getRoot(forParts: parts[...])
+		var structure = getStructure(forParts: parts[...])
+		if case .leaf = structure.data {
+			structure = PlowRopeNode(leftChild: structure)
+		}
+		self.root = structure.asParental()
 	}
 
 	init(withRoot root: PlowRopeNode.ParentalNode) {
@@ -467,6 +485,7 @@ extension PlowRope: CustomDebugStringConvertible {
 		for line in root.right.debugDescription.split(separator: "\n") {
 			out += "| | " + line + "\n"
 		}
+		out += "^ \"\(String(self))\""
 		return out
 	}
 }
