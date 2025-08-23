@@ -1,6 +1,15 @@
 /// A node inside a ``PlowRope``.
 struct PlowRopeNode {
-	public static let maxLeafCount = 1_000_000
+	/// The maximum size (`count`) of a leaf. In release builds, this value is
+	/// equal to one million. Debug builds use a much smaller value to simulate
+	/// large strings.
+	public static var maxLeafCount: Int {
+		#if !DEBUG
+			1_000_000
+		#else
+			5
+		#endif
+	}
 
 	enum Data {
 		case parental(ParentalNode)
