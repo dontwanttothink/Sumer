@@ -69,7 +69,7 @@ public struct PlowRope {
 		var current = root.container
 		var cidx = index
 		while case .parental(let children) = current.data {
-			if cidx <= children.left.count {
+			if cidx < children.left.count {
 				current = children.left
 			} else {
 				cidx -= children.left.count
@@ -90,7 +90,9 @@ public struct PlowRope {
 	private func insertInternode(at index: Int) -> PlowRopeNode.ParentalNode {
 		precondition(index >= 0 && index < self.count, "Index out of bounds")
 
-		let oldLeaf = getLeaf(at: index).0.container
+		// We query 'index - 1' because we prefer the left node for an insertion
+		// at the boundary between two siblings.
+		let oldLeaf = getLeaf(at: index - 1).0.container
 		var new = PlowRopeNode(leftChild: oldLeaf)
 		new.parent = oldLeaf.parent
 
