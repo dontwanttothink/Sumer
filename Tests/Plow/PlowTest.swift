@@ -15,9 +15,9 @@ import Testing
 }
 
 @Test("Can be joined together") func joinedTogether() {
-	let a = PlowRope(for: "I'm okay.")
+	let a = PlowRope(for: "Everything is okay.")
 	let b = PlowRope(for: " But…")
 	let c = a.join(with: b)
 
-	#expect(String(c) == "I'm okay. But…")
+	#expect(String(c) == "Everything is okay. But…")
 }
