@@ -20,7 +20,7 @@ extension String {
 public struct PlowRope: BidirectionalCollection {
 	public typealias Index = Int
 	public var startIndex: Int { 0 }
-	public var endIndex: Int { count - 1 }
+	public var endIndex: Int { count }
 	public var count: Int { root.count }
 
 	/// The root is never a leaf node.
@@ -38,13 +38,12 @@ public struct PlowRope: BidirectionalCollection {
 		)
 		func getRoot(forParts parts: ArraySlice<Substring>) -> PlowRopeNode.ParentalNode {
 			guard parts.count > 2 else {
-				assert(!parts.isEmpty)
 				return PlowRopeNode(
 					leftChild: PlowRopeNode(
-						content: String(parts[0])
+						content: 0 < parts.count ? String(parts[0]) : ""
 					),
 					rightChild: PlowRopeNode(
-						content: parts.count == 2 ? String(parts[1]) : ""
+						content: 1 < parts.count ? String(parts[1]) : ""
 					)
 				).asParental()
 			}
@@ -436,7 +435,8 @@ public struct PlowRope: BidirectionalCollection {
 	}
 
 	public func insert<C>(contentsOf newElements: C)
-	where C: Collection, C.Element == Self.Element {}
+	where C: Collection, C.Element == Self.Element {
+	}
 
 	// we can implement large insertions through a split
 	// and two joins.
