@@ -14,3 +14,6 @@ format:
 
 distribute:
     ./Distribution/create_app_bundle.sh
+
+test:
+    swift test
