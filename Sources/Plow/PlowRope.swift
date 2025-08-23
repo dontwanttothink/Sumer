@@ -456,12 +456,12 @@ extension PlowRope: BidirectionalCollection {
 extension PlowRope: CustomDebugStringConvertible {
 	public var debugDescription: String {
 		var out = ""
-		out += "root\n"
-		out += "| left\n"
+		out += "root (\(count))\n"
+		out += "| left (\(root.left.count))\n"
 		for line in root.left.debugDescription.split(separator: "\n") {
 			out += "| | " + line + "\n"
 		}
-		out += "| right\n"
+		out += "| right (\(root.right.count))\n"
 		for line in root.right.debugDescription.split(separator: "\n") {
 			out += "| | " + line + "\n"
 		}

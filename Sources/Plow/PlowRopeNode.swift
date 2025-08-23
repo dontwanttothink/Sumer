@@ -341,11 +341,11 @@ extension PlowRopeNode: CustomDebugStringConvertible {
 		}
 
 		var out = ""
-		out += "left\n"
+		out += "left (\(p.left.count))\n"
 		for line in p.left.debugDescription.split(separator: "\n") {
 			out += "| " + line + "\n"
 		}
-		out += "right\n"
+		out += "right (\(p.right.count))\n"
 		for line in p.right.debugDescription.split(separator: "\n") {
 			out += "| " + line + "\n"
 		}
