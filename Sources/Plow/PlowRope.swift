@@ -37,7 +37,7 @@ extension ArraySlice {
 	}
 }
 
-public struct PlowRope: ~Copyable {
+public struct PlowRope {
 	/// The root is never a leaf node.
 	///
 	/// The setter for this property stores a strong reference to the
@@ -105,8 +105,9 @@ public struct PlowRope: ~Copyable {
 	/// not be balanced. Sizes remain correct.
 	///
 	/// - Returns: The inserted internode.
-	private func insertInternode(at index: Int) -> PlowRopeNode.ParentalNode {
+	private mutating func insertInternode(at index: Int) -> PlowRopeNode.ParentalNode {
 		precondition(index >= 0 && index < self.count, "Index out of bounds")
+		onModify()
 
 		// We query 'index - 1' because we prefer the left node for an insertion
 		// at the boundary between two siblings.
@@ -190,6 +191,7 @@ public struct PlowRope: ~Copyable {
 	/// manipulation, which might not have changed.
 	private mutating func deleteLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
 		precondition(index >= 0 && index < self.count, "Index out of bounds")
+		onModify()
 
 		var current = root.container
 		var cidx = index
@@ -302,7 +304,8 @@ public struct PlowRope: ~Copyable {
 	/// The resulting tree may not be balanced.
 	///
 	/// - Returns: the parent of the leaf containing `index`.
-	private func splitLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
+	private mutating func splitLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
+		onModify()
 		let (leaf, pre) = getLeaf(at: index)
 		guard index != pre || index - pre != leaf.count else {
 			return leaf.parent
