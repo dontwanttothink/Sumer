@@ -419,10 +419,24 @@ public struct PlowRope {
 			}
 		}
 	}
-	public consuming func join(with right: consuming PlowRope) -> PlowRope {
+
+	/// Returns a new rope with the content of `right` after the content of this
+	/// rope.
+	///
+	/// **Avoid expensive copies**
+	///
+	/// If you will not use `right`, prefix it with `consume` in the function
+	/// call.
+	///
+	/// ```swift
+	/// let a = PlowRope()
+	/// let b = PlowRope()
+	/// a.join(consume b)
+	/// ```
+	public consuming func join(with right: consuming PlowRope) {
 		let left = self
 		if left.root.height > right.root.height + 1 {
-			return PlowRope(
+			self = PlowRope(
 				withRoot:
 					joinRight(
 						left: left.root,
@@ -431,7 +445,7 @@ public struct PlowRope {
 			)
 		}
 		if right.root.height > left.root.height + 1 {
-			return PlowRope(
+			self = PlowRope(
 				withRoot:
 					joinLeft(
 						left: left.root,
@@ -445,7 +459,7 @@ public struct PlowRope {
 			leftChild: left.root.container,
 			rightChild: right.root.container,
 		).asParental()
-		return out
+		self = out
 	}
 
 	public subscript(index: Int) -> Character {
