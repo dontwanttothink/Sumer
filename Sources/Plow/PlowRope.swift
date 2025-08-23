@@ -17,17 +17,14 @@ extension String {
 	}
 }
 
-public struct PlowRope: BidirectionalCollection {
-	public typealias Index = Int
-	public var startIndex: Int { 0 }
-	public var endIndex: Int { count }
-	public var count: Int { root.count }
-
+public struct PlowRope {
 	/// The root is never a leaf node.
 	///
 	/// The setter for this property stores a strong reference to the
 	/// ``PlowRopeNode/ParentalNode``'s' `.container` property.
 	private var root: PlowRopeNode.ParentalNode
+
+	public var count: Int { root.count }
 
 	public init() {
 		self.init(for: "")
@@ -441,11 +438,34 @@ public struct PlowRope: BidirectionalCollection {
 	// we can implement large insertions through a split
 	// and two joins.
 
+}
+
+extension PlowRope: BidirectionalCollection {
+	public typealias Index = Int
+	public var startIndex: Int { 0 }
+	public var endIndex: Int { count }
+
 	public func index(after i: Int) -> Int {
 		i + 1
 	}
 	public func index(before i: Int) -> Int {
 		i - 1
+	}
+}
+
+extension PlowRope: CustomDebugStringConvertible {
+	public var debugDescription: String {
+		var out = ""
+		out += "root\n"
+		out += "| left\n"
+		for line in root.left.debugDescription.split(separator: "\n") {
+			out += "| | " + line + "\n"
+		}
+		out += "| right\n"
+		for line in root.right.debugDescription.split(separator: "\n") {
+			out += "| | " + line + "\n"
+		}
+		return out
 	}
 }
 

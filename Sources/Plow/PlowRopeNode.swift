@@ -333,3 +333,22 @@ struct PlowRopeNode {
 		}
 	}
 }
+
+extension PlowRopeNode: CustomDebugStringConvertible {
+	var debugDescription: String {
+		guard case .parental(let p) = self.data else {
+			return "\"\(self.asLeaf().content)\""
+		}
+
+		var out = ""
+		out += "left\n"
+		for line in p.left.debugDescription.split(separator: "\n") {
+			out += "| " + line + "\n"
+		}
+		out += "right\n"
+		for line in p.right.debugDescription.split(separator: "\n") {
+			out += "| " + line + "\n"
+		}
+		return out
+	}
+}
