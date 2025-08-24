@@ -345,6 +345,10 @@ public struct PlowRope {
 	/// let b = PlowRope()
 	/// a.join(consume b)
 	/// ```
+	///
+	/// **Internal**
+	///
+	/// The resulting tree is balanced.
 	public mutating func join(with right: consuming PlowRope) {
 		ensureSafelyMutable()
 
