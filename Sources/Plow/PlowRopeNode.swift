@@ -1,5 +1,5 @@
 /// A node inside a ``PlowRope``.
-struct PlowRopeNode {
+enum PlowRopeNode {
 	/// The maximum size (`count`) of a leaf. In release builds, this value is
 	/// equal to one million. Debug builds use a much smaller value to simulate
 	/// large strings.
@@ -11,17 +11,13 @@ struct PlowRopeNode {
 		#endif
 	}
 
-	enum Data {
-		case parental(ParentalNode)
-		case leaf(LeafNode)
-	}
-
-	var data: Data!
+	case parental(ParentalNode)
+	case leaf(LeafNode)
 
 	/// Creates a new leaf. `content.count` must not exceed `maxLeafCount`.
 	init(content: String) {
 		assert(content.count <= Self.maxLeafCount)
-		data = .leaf(LeafNode(content))
+		self = .leaf(LeafNode(content))
 	}
 
 	/// Creates a new parental node. You may omit or pass `nil` to the
@@ -29,6 +25,8 @@ struct PlowRopeNode {
 	/// take their place.
 	///
 	/// This initializer sets the  `parent` property on any passed children.
+	/// This means you must perform copies on the arguments passed if the
+	/// originals cannot be modified, for example, because they are shared.
 	///
 	/// The new node's `count`, `height` and `balanceFactor` properties are set
 	/// automatically based on the children supplied. If you manually make
@@ -37,7 +35,7 @@ struct PlowRopeNode {
 		leftChild: PlowRopeNode? = nil,
 		rightChild: PlowRopeNode? = nil
 	) {
-		data = .parental(
+		self = .parental(
 			ParentalNode(
 				leftChild: leftChild ?? PlowRopeNode(content: ""),
 				rightChild: rightChild ?? PlowRopeNode(content: ""),
@@ -45,13 +43,13 @@ struct PlowRopeNode {
 		)
 	}
 
-	private init(withData data: Data) {
-		self.data = data
+	private init(withData data: PlowRopeNode) {
+		self = data
 	}
 
 	// Maybe: make this a macro
 	var count: Int {
-		switch data! {
+		switch self {
 		case .leaf(let content):
 			return content.count
 		case .parental(let children):
@@ -60,7 +58,7 @@ struct PlowRopeNode {
 	}
 	var parent: ParentalNode? {
 		get {
-			switch data! {
+			switch self {
 			case .leaf(let node):
 				return node.parent
 			case .parental(let node):
@@ -68,7 +66,7 @@ struct PlowRopeNode {
 			}
 		}
 		set {
-			switch data! {
+			switch self {
 			case .leaf(let node):
 				node.parent = newValue
 			case .parental(let node):
@@ -80,7 +78,7 @@ struct PlowRopeNode {
 	/// Avoid using this property; it is only necessary in rare cases. Instead,
 	/// perform pattern-matching on `.data`.
 	var isParental: Bool {
-		switch data! {
+		switch self {
 		case .leaf:
 			return false
 		case .parental:
@@ -89,7 +87,7 @@ struct PlowRopeNode {
 	}
 
 	var height: Int {
-		switch data! {
+		switch self {
 		case .leaf(let leaf):
 			return leaf.height
 		case .parental(let parent):
@@ -98,15 +96,15 @@ struct PlowRopeNode {
 	}
 
 	func isIdentical(to other: PlowRopeNode) -> Bool {
-		switch data! {
+		switch self {
 		case .leaf(let leaf):
-			if case .leaf(let otherLeaf) = other.data,
+			if case .leaf(let otherLeaf) = other,
 				leaf.isIdentical(to: otherLeaf)
 			{
 				return true
 			}
 		case .parental(let parental):
-			if case .parental(let otherParental) = other.data,
+			if case .parental(let otherParental) = other,
 				parental.isIdentical(to: otherParental)
 			{
 				return true
@@ -121,7 +119,7 @@ struct PlowRopeNode {
 	/// If error handling is needed, use pattern matching on the `data` property
 	/// instead.
 	func asParental() -> PlowRopeNode.ParentalNode {
-		guard case .parental(let node) = self.data else {
+		guard case .parental(let node) = self else {
 			preconditionFailure("Attempted to use a leaf node as a parental node.")
 		}
 		return node
@@ -132,14 +130,14 @@ struct PlowRopeNode {
 	/// If error handling is needed, use pattern matching on the `data` property
 	/// instead.
 	func asLeaf() -> PlowRopeNode.LeafNode {
-		guard case .leaf(let node) = self.data else {
+		guard case .leaf(let node) = self else {
 			preconditionFailure("Attempted to use a parental node as a leaf node.")
 		}
 		return node
 	}
 
 	func isRightChildOf(_ node: PlowRopeNode) -> Bool {
-		if case .parental(let data) = node.data,
+		if case .parental(let data) = node,
 			data.right.isIdentical(to: self)
 		{
 			return true
@@ -153,7 +151,7 @@ struct PlowRopeNode {
 		return false
 	}
 	func isLeftChildOf(_ node: PlowRopeNode) -> Bool {
-		if case .parental(let data) = node.data,
+		if case .parental(let data) = node,
 			data.left.isIdentical(to: self)
 		{
 			return true
@@ -218,8 +216,9 @@ struct PlowRopeNode {
 		}
 
 		// NOTE: `height`, `count` and `balanceFactor` must be kept consistent
-		// in rotation methods below.
+		// in rotation methods below. Copies must also be made if necessary.
 
+		/// Copies are made if necessary not to corrupt other instances.
 		// https://en.wikipedia.org/wiki/File:AVL-simple-left_K.svg
 		@discardableResult func rotateLeft() -> ParentalNode {
 			let z = self.right.asParental()
@@ -249,12 +248,14 @@ struct PlowRopeNode {
 			return z
 		}
 
+		/// Copies are made if necessary not to corrupt other instances.
 		// https://en.wikipedia.org/wiki/File:AVL-simple-left_K.svg
 		@discardableResult func rotateRight() -> ParentalNode {
 			let z = self.left.asParental()
 			assert(z.balanceFactor <= 0)
 
 			var inner = z.right
+
 			self.left = inner
 			inner.parent = self
 
@@ -277,6 +278,7 @@ struct PlowRopeNode {
 			return z
 		}
 
+		/// Copies are made if necessary not to corrupt other instances.
 		// https://commons.wikimedia.org/wiki/File:AVL-double-rl_K.svg
 		@discardableResult func rotateLeftRight() -> ParentalNode {
 			let z = self.left.asParental()
@@ -286,8 +288,12 @@ struct PlowRopeNode {
 			return self.rotateRight()
 		}
 
+		/// Copies are made if necessary not to corrupt other instances.
 		// https://commons.wikimedia.org/wiki/File:AVL-double-rl_K.svg
-		@discardableResult func rotateRightLeft() -> ParentalNode {
+		@discardableResult
+		func rotateRightLeft(  // copyingWith beforeModify: (PlowRopeNode) -> Void
+			) -> ParentalNode
+		{
 			let z = self.right.asParental()
 			assert(z.balanceFactor < 0)
 
@@ -345,7 +351,7 @@ struct PlowRopeNode {
 
 extension PlowRopeNode: CustomDebugStringConvertible {
 	var debugDescription: String {
-		guard case .parental(let p) = self.data else {
+		guard case .parental(let p) = self else {
 			return "\"\(self.asLeaf().content)\""
 		}
 
