@@ -227,7 +227,6 @@ enum PlowRopeNode {
 		// NOTE: `height`, `count` and `balanceFactor` must be kept consistent
 		// in rotation methods below. Copies must also be made if necessary.
 
-		/// Copies are made if necessary not to corrupt other instances.
 		// https://en.wikipedia.org/wiki/File:AVL-simple-left_K.svg
 		@discardableResult func rotateLeft() -> ParentalNode {
 			let z = self.right.asParental()
@@ -257,7 +256,6 @@ enum PlowRopeNode {
 			return z
 		}
 
-		/// Copies are made if necessary not to corrupt other instances.
 		// https://en.wikipedia.org/wiki/File:AVL-simple-left_K.svg
 		@discardableResult func rotateRight() -> ParentalNode {
 			let z = self.left.asParental()
@@ -287,7 +285,6 @@ enum PlowRopeNode {
 			return z
 		}
 
-		/// Copies are made if necessary not to corrupt other instances.
 		// https://commons.wikimedia.org/wiki/File:AVL-double-rl_K.svg
 		@discardableResult func rotateLeftRight() -> ParentalNode {
 			let z = self.left.asParental()
@@ -297,7 +294,6 @@ enum PlowRopeNode {
 			return self.rotateRight()
 		}
 
-		/// Copies are made if necessary not to corrupt other instances.
 		// https://commons.wikimedia.org/wiki/File:AVL-double-rl_K.svg
 		@discardableResult
 		func rotateRightLeft(  // copyingWith beforeModify: (PlowRopeNode) -> Void
