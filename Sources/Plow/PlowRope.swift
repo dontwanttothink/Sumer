@@ -137,10 +137,11 @@ public struct PlowRope {
 	/// Performs manipulations on the tree to fix imbalances after an internode
 	/// insertion. Counts and heights stored remain correct.
 	///
+	/// The subtree 'new' must be already in AVL shape. Its height must have
+	/// increased by one. This is also a loop invariant.
+	///
 	/// - Parameter new: A ``PlowRopeNode/ParentalNode`` returned by
 	/// ``newInternode(at:)``.
-	// The subtree 'new' must be already in AVL shape. Its height must have
-	// increased by one. This is also a loop invariant.
 	private mutating func insertionFixup(dueTo new: PlowRopeNode.ParentalNode) {
 		ensureSafelyMutable()
 
