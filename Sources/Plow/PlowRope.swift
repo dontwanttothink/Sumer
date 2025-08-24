@@ -225,10 +225,10 @@ public struct PlowRope {
 		return parent
 	}
 
-	/// This instance will be mutated to represent only its first `index + 1`
-	/// graphemes.
+	/// Splits the rope. The instance on which this method is called is modified
+	/// to represent only its first `index` graphemes.
 	///
-	/// Returns: An instance representing the rest of the graphemes.
+	/// - Returns: An instance representing the rest of the graphemes.
 	public consuming func split(at index: Int) -> PlowRope {
 		ensureSafelyMutable()
 
