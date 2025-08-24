@@ -242,6 +242,8 @@ public struct PlowRope {
 		fatalError(":p")
 	}
 
+	/// Helper function to join a tall `right` with a short `left`. The
+	/// resulting tree is balanced.
 	private static func joinLeft(
 		left: PlowRopeNode.ParentalNode,
 		right: PlowRopeNode.ParentalNode
@@ -285,6 +287,8 @@ public struct PlowRope {
 			}
 		}
 	}
+	/// Helper function to join a tall `left` with a short `right`. The
+	/// resulting tree is balanced.
 	private static func joinRight(
 		left: PlowRopeNode.ParentalNode,
 		right: PlowRopeNode.ParentalNode
