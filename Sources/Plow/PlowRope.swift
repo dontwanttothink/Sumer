@@ -430,7 +430,8 @@ public struct PlowRope {
 	/// let b = PlowRope()
 	/// a.join(consume b)
 	/// ```
-	public consuming func join(with right: consuming PlowRope) {
+	public mutating func join(with right: consuming PlowRope) {
+		onModify()
 		let left = self
 		if left.root.height > right.root.height + 1 {
 			self = PlowRope(
