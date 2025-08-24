@@ -39,9 +39,6 @@ extension ArraySlice {
 
 public struct PlowRope {
 	/// The root is never a leaf node.
-	///
-	/// The setter for this property stores a strong reference to the
-	/// ``PlowRopeNode/ParentalNode``'s' `.container` property.
 	private var root: PlowRopeNode.ParentalNode
 
 	public var count: Int { root.count }
