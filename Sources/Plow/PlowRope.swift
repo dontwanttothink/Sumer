@@ -64,7 +64,7 @@ public struct PlowRope {
 		}
 
 		var structure = getStructure(forParts: parts[...])
-		if case .leaf = structure.data {
+		if case .leaf = structure {
 			structure = PlowRopeNode(leftChild: structure)
 		}
 		self.root = structure.asParental()
@@ -74,16 +74,49 @@ public struct PlowRope {
 		self.root = root
 	}
 
-	private mutating func onModify() {
+	/// every use of this function is wrong and its implementation and design is
+	/// kind of currently broken so yay lol however it's very late
+	///
+	/// instead, call this function on the highest-level node or nodes (closest
+	/// to root) you will be  working inside of to get a possibly new instance
+	/// that you can safely modify the internal structure of AND USE to obtain
+	/// new bindings —in other words, don't be silly like me and call it on an
+	/// existing binding hoping it magically makes your binding work properly
+	///
+	/// maybe i can implement some kind of witness type to ensure that everyone
+	/// calls this properly or whatever. maybe even with debug assertions,
+	/// though that's probably too much effort
+	///
+	/// ---
+	///
+	/// Call this method before making changes to a node, or you risk corrupting
+	/// other possible copies of the structure.
+	///
+	/// ---
+	///
+	/// **What happens when you call this function**
+	///
+	/// In the internal tree structure of the ``PlowRope`` instance, impacted
+	/// nodes will be replaced with copies unless it is certain that only one
+	/// binding can access them in the first place.
+	///
+	/// For any possible state of a correctly implemented AVL tree, the cost of
+	/// this function is Θ(lg n) in the worst case.
+	private mutating func asModifiable(node: PlowRopeNode...) {
 		if !isKnownUniquelyReferenced(&root) {
+			// ^ it would be incorrect to check for the node itself:
+			// 		plowRope -> Data (root; 2 strong references) -> Parent (1 reference) -> Affected node (1 reference)
+			// 		plowRope2 ──╯
+			//
 			root = root.copy()
+			// root.copy(simplePathTo: node)
 		}
 	}
 
 	private func getLeaf(at index: Int) -> (PlowRopeNode.LeafNode, Int) {
 		var current = root.container
 		var cidx = index
-		while case .parental(let children) = current.data {
+		while case .parental(let children) = current {
 			if cidx < children.left.count {
 				current = children.left
 			} else {
@@ -101,15 +134,19 @@ public struct PlowRope {
 	/// internode; the leaf is moved to its left child. The resulting tree may
 	/// not be balanced. Sizes remain correct.
 	///
+	/// Copies are made automatically, if necessary, to avoid corrupting other
+	/// structure values sharing the same underlying heap memory.
+	///
 	/// - Returns: The inserted internode.
 	private mutating func insertInternode(at index: Int) -> PlowRopeNode.ParentalNode {
 		precondition(index >= 0 && index < self.count, "Index out of bounds")
-		onModify()
 
 		// We query 'index - 1' because we prefer the left node for an insertion
 		// at the boundary between two siblings.
 		let oldLeaf = getLeaf(at: index - 1).0.container
+
 		var new = PlowRopeNode(leftChild: oldLeaf)
+		asModifiable(node: new)
 		new.parent = oldLeaf.parent
 
 		let parent = oldLeaf.parent!
@@ -134,7 +171,7 @@ public struct PlowRope {
 			var n: PlowRopeNode.ParentalNode
 			var g: PlowRopeNode.ParentalNode?
 
-			if case .parental(let xr) = x.right.data, z.isIdentical(to: xr) {
+			if case .parental(let xr) = x.right, z.isIdentical(to: xr) {
 				if x.balanceFactor > 0 {
 					g = x.parent
 					if z.balanceFactor < 0 {
@@ -188,11 +225,10 @@ public struct PlowRope {
 	/// manipulation, which might not have changed.
 	private mutating func deleteLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
 		precondition(index >= 0 && index < self.count, "Index out of bounds")
-		onModify()
 
 		var current = root.container
 		var cidx = index
-		while case .parental(let children) = current.data {
+		while case .parental(let children) = current {
 			if cidx < children.left.count {
 				current = children.left
 			} else {
@@ -212,17 +248,22 @@ public struct PlowRope {
 			}
 
 		if let grandparent = sibling.parent!.parent {
+			asModifiable(node: grandparent.container)
 			if parent.container.isLeftChildOf(grandparent) {
 				grandparent.left = sibling
 			} else {
 				grandparent.right = sibling
 			}
+
+			asModifiable(node: sibling)
 			sibling.parent = grandparent
 
 			return grandparent
 		} else {
+			asModifiable(node: root.container)
 			root.left = sibling
 			root.right = PlowRopeNode(content: "")
+			asModifiable(node: sibling)
 			sibling.parent = root
 
 			return root
@@ -249,10 +290,12 @@ public struct PlowRope {
 						n = x.rotateLeft()
 					}
 				} else if x.balanceFactor == 0 {
+					asModifiable(node: x.container)
 					x.balanceFactor = 1
 					break
 				} else {
 					n = x
+					asModifiable(node: n.container)
 					n.balanceFactor = 0
 					p = g
 					continue
@@ -267,10 +310,12 @@ public struct PlowRope {
 						n = x.rotateRight()
 					}
 				} else if x.balanceFactor == 0 {
+					asModifiable(node: x.container)
 					x.balanceFactor = -1
 					break
 				} else {
 					n = x
+					asModifiable(node: n.container)
 					n.balanceFactor = 0
 					p = g
 					continue
@@ -300,9 +345,10 @@ public struct PlowRope {
 	///
 	/// The resulting tree may not be balanced.
 	///
+	/// No copies are made.
+	///
 	/// - Returns: the parent of the leaf containing `index`.
 	private mutating func splitLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
-		onModify()
 		let (leaf, pre) = getLeaf(at: index)
 		guard index != pre || index - pre != leaf.count else {
 			return leaf.parent
@@ -310,17 +356,26 @@ public struct PlowRope {
 
 		let parent = insertInternode(at: index)
 		let splitIndex = leaf.content.index(leaf.content.startIndex, offsetBy: index - pre)
+
 		let left = leaf.content[
 			..<splitIndex
 		]
 		let right = leaf.content[splitIndex...]
+
+		asModifiable(node: leaf.container)
 		leaf.content = String(left)
+
+		asModifiable(node: parent.right)
 		parent.right.asLeaf().content = String(right)
 
 		return parent
 	}
 
-	public consuming func split(at index: Int) -> (PlowRope, PlowRope) {
+	/// This instance will be mutated to represent only its first `index + 1`
+	/// graphemes.
+	///
+	/// Returns: An instance representing the rest of the graphemes.
+	public consuming func split(at index: Int) -> PlowRope {
 		func _split() -> (PlowRopeNode.ParentalNode, PlowRopeNode.ParentalNode) {
 			fatalError("lol")
 		}
@@ -332,8 +387,8 @@ public struct PlowRope {
 	}
 
 	private func joinLeft(
-		left: consuming PlowRopeNode.ParentalNode,
-		right: consuming PlowRopeNode.ParentalNode
+		left: PlowRopeNode.ParentalNode,
+		right: PlowRopeNode.ParentalNode
 	) -> PlowRopeNode.ParentalNode {
 		// 'right' is too tall: two or more levels taller.
 
@@ -375,8 +430,8 @@ public struct PlowRope {
 		}
 	}
 	private func joinRight(
-		left: consuming PlowRopeNode.ParentalNode,
-		right: consuming PlowRopeNode.ParentalNode
+		left: PlowRopeNode.ParentalNode,
+		right: PlowRopeNode.ParentalNode
 	) -> PlowRopeNode.ParentalNode {
 		// 'left' is too tall: two or more levels taller.
 
@@ -431,30 +486,30 @@ public struct PlowRope {
 	/// a.join(consume b)
 	/// ```
 	public mutating func join(with right: consuming PlowRope) {
-		onModify()
-		let left = self
-		if left.root.height > right.root.height + 1 {
+		if self.root.height > right.root.height + 1 {
 			self = PlowRope(
 				withRoot:
 					joinRight(
-						left: left.root,
+						left: self.root,
 						right: right.root
 					)
 			)
 		}
-		if right.root.height > left.root.height + 1 {
+		if right.root.height > self.root.height + 1 {
 			self = PlowRope(
 				withRoot:
 					joinLeft(
-						left: left.root,
-						right: right.root
+						left: self.root,
+						right: right.root,
 					)
 			)
 		}
 
 		var out = PlowRope()
+		asModifiable(node: self.root.container)
+		asModifiable(node: right.root.container)
 		out.root = PlowRopeNode(
-			leftChild: left.root.container,
+			leftChild: self.root.container,
 			rightChild: right.root.container,
 		).asParental()
 		self = out
