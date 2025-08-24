@@ -140,8 +140,8 @@ public struct PlowRope {
 	/// The subtree 'new' must be already in AVL shape. Its height must have
 	/// increased by one. This is also a loop invariant.
 	///
-	/// - Parameter new: A ``PlowRopeNode/ParentalNode`` returned by
-	/// ``newInternode(at:)``.
+	/// - Parameter new: A node rooting a subtree with the characteristics
+	/// above.
 	private mutating func insertionFixup(dueTo new: PlowRopeNode.ParentalNode) {
 		ensureSafelyMutable()
 
