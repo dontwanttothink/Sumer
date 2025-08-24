@@ -74,42 +74,17 @@ public struct PlowRope {
 		self.root = root
 	}
 
-	/// every use of this function is wrong and its implementation and design is
-	/// kind of currently broken so yay lol however it's very late
+	/// Call this function before making changes to the tree structure.
 	///
-	/// instead, call this function on the highest-level node or nodes (closest
-	/// to root) you will be  working inside of to get a possibly new instance
-	/// that you can safely modify the internal structure of AND USE to obtain
-	/// new bindings —in other words, don't be silly like me and call it on an
-	/// existing binding hoping it magically makes your binding work properly
-	///
-	/// maybe i can implement some kind of witness type to ensure that everyone
-	/// calls this properly or whatever. maybe even with debug assertions,
-	/// though that's probably too much effort
-	///
-	/// ---
-	///
-	/// Call this method before making changes to a node, or you risk corrupting
-	/// other possible copies of the structure.
-	///
-	/// ---
-	///
-	/// **What happens when you call this function**
-	///
-	/// In the internal tree structure of the ``PlowRope`` instance, impacted
-	/// nodes will be replaced with copies unless it is certain that only one
-	/// binding can access them in the first place.
-	///
-	/// For any possible state of a correctly implemented AVL tree, the cost of
-	/// this function is Θ(lg n) in the worst case.
-	private mutating func asModifiable(node: PlowRopeNode...) {
+	/// - Complexity: Θ(n) in the worst case.
+	private mutating func ensureSafelyMutable() {
+		// I don't think we can really do better since we need `.parent`. The
+		// application shouldn't be doing copies anyway, as far as I can
+		// foresee, and in practice the string content itself is not copied
+		// until written to (due to Swift's CoW behavior), so the copy shouldn't
+		// actually be too large.
 		if !isKnownUniquelyReferenced(&root) {
-			// ^ it would be incorrect to check for the node itself:
-			// 		plowRope -> Data (root; 2 strong references) -> Parent (1 reference) -> Affected node (1 reference)
-			// 		plowRope2 ──╯
-			//
 			root = root.copy()
-			// root.copy(simplePathTo: node)
 		}
 	}
 
@@ -140,13 +115,13 @@ public struct PlowRope {
 	/// - Returns: The inserted internode.
 	private mutating func insertInternode(at index: Int) -> PlowRopeNode.ParentalNode {
 		precondition(index >= 0 && index < self.count, "Index out of bounds")
+		ensureSafelyMutable()
 
 		// We query 'index - 1' because we prefer the left node for an insertion
 		// at the boundary between two siblings.
 		let oldLeaf = getLeaf(at: index - 1).0.container
 
 		var new = PlowRopeNode(leftChild: oldLeaf)
-		asModifiable(node: new)
 		new.parent = oldLeaf.parent
 
 		let parent = oldLeaf.parent!
@@ -166,6 +141,8 @@ public struct PlowRope {
 	// The subtree 'new' must be already in AVL shape. Its height must have
 	// increased by one. This is also a loop invariant.
 	private mutating func insertionFixup(dueTo new: PlowRopeNode.ParentalNode) {
+		ensureSafelyMutable()
+
 		var z = new
 		while let x = z.parent {
 			var n: PlowRopeNode.ParentalNode
@@ -217,14 +194,17 @@ public struct PlowRope {
 	}
 
 	/// Deletes the leaf containing the character at the position `index`. To
-	/// keep a valid tree structure, the sibling of the deleted leaf may take
-	/// the place of its old parent, or move from being its right child to
-	/// being its left child.
+	/// keep a tree structure, the sibling of the deleted leaf may take the
+	/// place of its old parent, or move from being its right child to being its
+	/// left child.
+	///
+	/// The resulting tree may not be balanced.
 	///
 	/// - Returns: The deleted leaf's sibling's parent after the tree
 	/// manipulation, which might not have changed.
 	private mutating func deleteLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
 		precondition(index >= 0 && index < self.count, "Index out of bounds")
+		ensureSafelyMutable()
 
 		var current = root.container
 		var cidx = index
@@ -248,22 +228,18 @@ public struct PlowRope {
 			}
 
 		if let grandparent = sibling.parent!.parent {
-			asModifiable(node: grandparent.container)
 			if parent.container.isLeftChildOf(grandparent) {
 				grandparent.left = sibling
 			} else {
 				grandparent.right = sibling
 			}
 
-			asModifiable(node: sibling)
 			sibling.parent = grandparent
 
 			return grandparent
 		} else {
-			asModifiable(node: root.container)
 			root.left = sibling
 			root.right = PlowRopeNode(content: "")
-			asModifiable(node: sibling)
 			sibling.parent = root
 
 			return root
@@ -274,6 +250,8 @@ public struct PlowRope {
 	///
 	/// - Parameter shortened: Parental node returned by `deleteLeaf(at:)`.
 	private mutating func deletionFixup(dueTo shortened: PlowRopeNode.ParentalNode) {
+		ensureSafelyMutable()
+
 		var n = shortened
 		var p = shortened.parent
 		while let x = p {
@@ -290,12 +268,10 @@ public struct PlowRope {
 						n = x.rotateLeft()
 					}
 				} else if x.balanceFactor == 0 {
-					asModifiable(node: x.container)
 					x.balanceFactor = 1
 					break
 				} else {
 					n = x
-					asModifiable(node: n.container)
 					n.balanceFactor = 0
 					p = g
 					continue
@@ -310,12 +286,10 @@ public struct PlowRope {
 						n = x.rotateRight()
 					}
 				} else if x.balanceFactor == 0 {
-					asModifiable(node: x.container)
 					x.balanceFactor = -1
 					break
 				} else {
 					n = x
-					asModifiable(node: n.container)
 					n.balanceFactor = 0
 					p = g
 					continue
@@ -349,6 +323,8 @@ public struct PlowRope {
 	///
 	/// - Returns: the parent of the leaf containing `index`.
 	private mutating func splitLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
+		ensureSafelyMutable()
+
 		let (leaf, pre) = getLeaf(at: index)
 		guard index != pre || index - pre != leaf.count else {
 			return leaf.parent
@@ -362,10 +338,8 @@ public struct PlowRope {
 		]
 		let right = leaf.content[splitIndex...]
 
-		asModifiable(node: leaf.container)
 		leaf.content = String(left)
 
-		asModifiable(node: parent.right)
 		parent.right.asLeaf().content = String(right)
 
 		return parent
@@ -376,6 +350,8 @@ public struct PlowRope {
 	///
 	/// Returns: An instance representing the rest of the graphemes.
 	public consuming func split(at index: Int) -> PlowRope {
+		ensureSafelyMutable()
+
 		func _split() -> (PlowRopeNode.ParentalNode, PlowRopeNode.ParentalNode) {
 			fatalError("lol")
 		}
@@ -386,7 +362,7 @@ public struct PlowRope {
 		fatalError(":p")
 	}
 
-	private func joinLeft(
+	private static func joinLeft(
 		left: PlowRopeNode.ParentalNode,
 		right: PlowRopeNode.ParentalNode
 	) -> PlowRopeNode.ParentalNode {
@@ -429,7 +405,7 @@ public struct PlowRope {
 			}
 		}
 	}
-	private func joinRight(
+	private static func joinRight(
 		left: PlowRopeNode.ParentalNode,
 		right: PlowRopeNode.ParentalNode
 	) -> PlowRopeNode.ParentalNode {
@@ -486,10 +462,12 @@ public struct PlowRope {
 	/// a.join(consume b)
 	/// ```
 	public mutating func join(with right: consuming PlowRope) {
+		ensureSafelyMutable()
+
 		if self.root.height > right.root.height + 1 {
 			self = PlowRope(
 				withRoot:
-					joinRight(
+					Self.joinRight(
 						left: self.root,
 						right: right.root
 					)
@@ -498,7 +476,7 @@ public struct PlowRope {
 		if right.root.height > self.root.height + 1 {
 			self = PlowRope(
 				withRoot:
-					joinLeft(
+					Self.joinLeft(
 						left: self.root,
 						right: right.root,
 					)
@@ -506,8 +484,6 @@ public struct PlowRope {
 		}
 
 		var out = PlowRope()
-		asModifiable(node: self.root.container)
-		asModifiable(node: right.root.container)
 		out.root = PlowRopeNode(
 			leftChild: self.root.container,
 			rightChild: right.root.container,
@@ -516,13 +492,31 @@ public struct PlowRope {
 	}
 
 	public subscript(index: Int) -> Character {
-		let (leaf, start) = getLeaf(at: index)
-		let content = leaf.content
-		return content[content.index(content.startIndex, offsetBy: index - start)]
+		get {
+			precondition(index >= startIndex && index < endIndex, "Index out of range")
+
+			let (leaf, start) = getLeaf(at: index)
+			let content = leaf.content
+			return content[content.index(content.startIndex, offsetBy: index - start)]
+		}
+		set {
+			precondition(index >= startIndex && index < endIndex, "Index out of range")
+
+			let (leaf, start) = getLeaf(at: index)
+			let requestedIndex = leaf.content.index(
+				leaf.content.startIndex, offsetBy: index - start
+			)
+			leaf.content.replaceSubrange(
+				requestedIndex..<leaf.content.index(after: requestedIndex),
+				with: String(newValue)
+			)
+		}
 	}
 
-	public func insert<C>(contentsOf newElements: C)
+	public mutating func insert<C>(contentsOf newElements: C)
 	where C: Collection, C.Element == Self.Element {
+		ensureSafelyMutable()
+
 	}
 
 	// we can implement large insertions through a split
