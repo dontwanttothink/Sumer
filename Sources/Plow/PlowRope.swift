@@ -105,9 +105,7 @@ public struct PlowRope {
 	/// Inserts a new internode (non-content) suitable for large text insertion
 	/// at `index`.
 	///
-	/// The leaf containing the character at `index` is replaced with an
-	/// internode; the leaf is moved to its left child. The resulting tree may
-	/// not be balanced. Sizes remain correct.
+	/// The resulting tree is balanced. Sizes remain correct.
 	///
 	/// Copies are made automatically, if necessary, to avoid corrupting other
 	/// structure values sharing the same underlying heap memory.
@@ -130,7 +128,10 @@ public struct PlowRope {
 		} else {
 			parent.right = new
 		}
-		return new.asParental()
+
+		let newParental = new.asParental()
+		insertionFixup(dueTo: newParental)
+		return newParental
 	}
 
 	/// Performs manipulations on the tree to fix imbalances after an internode
