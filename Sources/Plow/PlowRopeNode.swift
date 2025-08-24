@@ -95,7 +95,16 @@ enum PlowRopeNode {
 		}
 	}
 
-	func isIdentical(to other: PlowRopeNode) -> Bool {
+	func isKnownUniquelyReferenced() -> Bool {
+		switch self {
+		case .leaf(var l):
+			return Swift.isKnownUniquelyReferenced(&l)
+		case .parental(var p):
+			return Swift.isKnownUniquelyReferenced(&p)
+		}
+	}
+
+	private func isIdentical(to other: PlowRopeNode) -> Bool {
 		switch self {
 		case .leaf(let leaf):
 			if case .leaf(let otherLeaf) = other,
