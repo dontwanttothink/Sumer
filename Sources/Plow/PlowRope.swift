@@ -46,7 +46,7 @@ public struct PlowRope {
 	public init() {
 		self.init(for: "")
 	}
-	/// Complexity: Θ(n) (intended)
+	/// - Complexity: Θ(n)
 	public init(for str: String) {
 		let parts = str.splitIntoGraphemeParts(
 			of: PlowRopeNode.maxLeafCount
@@ -190,127 +190,6 @@ public struct PlowRope {
 			} else {
 				self.root = n
 			}
-		}
-	}
-
-	/// Deletes the leaf containing the character at the position `index`. To
-	/// keep a tree structure, the sibling of the deleted leaf may take the
-	/// place of its old parent, or move from being its right child to being its
-	/// left child.
-	///
-	/// The resulting tree may not be balanced.
-	///
-	/// - Returns: The deleted leaf's sibling's parent after the tree
-	/// manipulation, which might not have changed.
-	private mutating func deleteLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
-		precondition(index >= 0 && index < self.count, "Index out of bounds")
-		ensureSafelyMutable()
-
-		var current = root.container
-		var cidx = index
-		while case .parental(let children) = current {
-			if cidx < children.left.count {
-				current = children.left
-			} else {
-				cidx -= children.left.count
-				current = children.right
-			}
-		}
-
-		let leaf = current
-		let parent = leaf.parent!
-
-		var sibling =
-			if leaf.isLeftChildOf(parent) {
-				parent.right
-			} else {
-				parent.left
-			}
-
-		if let grandparent = sibling.parent!.parent {
-			if parent.container.isLeftChildOf(grandparent) {
-				grandparent.left = sibling
-			} else {
-				grandparent.right = sibling
-			}
-
-			sibling.parent = grandparent
-
-			return grandparent
-		} else {
-			root.left = sibling
-			root.right = PlowRopeNode(content: "")
-			sibling.parent = root
-
-			return root
-		}
-	}
-
-	/// Performs manipulations to fix imbalances caused by a deletion.
-	///
-	/// - Parameter shortened: Parental node returned by `deleteLeaf(at:)`.
-	private mutating func deletionFixup(dueTo shortened: PlowRopeNode.ParentalNode) {
-		ensureSafelyMutable()
-
-		var n = shortened
-		var p = shortened.parent
-		while let x = p {
-			let g = x.parent
-
-			var b: Int
-			if n.container.isLeftChildOf(x) {
-				if x.balanceFactor > 0 {
-					let z = x.right.asParental()
-					b = z.balanceFactor
-					if b < 0 {
-						n = x.rotateRightLeft()
-					} else {
-						n = x.rotateLeft()
-					}
-				} else if x.balanceFactor == 0 {
-					x.balanceFactor = 1
-					break
-				} else {
-					n = x
-					n.balanceFactor = 0
-					p = g
-					continue
-				}
-			} else {
-				if x.balanceFactor < 0 {
-					let z = x.left.asParental()
-					b = z.balanceFactor
-					if b > 0 {
-						n = x.rotateLeft()
-					} else {
-						n = x.rotateRight()
-					}
-				} else if x.balanceFactor == 0 {
-					x.balanceFactor = -1
-					break
-				} else {
-					n = x
-					n.balanceFactor = 0
-					p = g
-					continue
-				}
-			}
-			n.parent = g
-			if let g {
-				if x.container.isLeftChildOf(g) {
-					g.left = n.container
-				} else {
-					g.right = n.container
-				}
-			} else {
-				self.root = n
-			}
-
-			if b == 0 {
-				break
-			}
-
-			p = g
 		}
 	}
 
@@ -489,6 +368,132 @@ public struct PlowRope {
 			rightChild: right.root.container,
 		).asParental()
 		self = out
+	}
+
+	/// Deletes the leaf containing the character at the position `index`. To
+	/// keep a tree structure, the sibling of the deleted leaf may take the
+	/// place of its old parent, or move from being its right child to being its
+	/// left child.
+	///
+	/// The resulting tree may not be balanced.
+	///
+	/// - Returns: The deleted leaf's sibling's parent after the tree
+	/// manipulation, which might not have changed.
+	private mutating func deleteLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
+		precondition(index >= 0 && index < self.count, "Index out of bounds")
+		ensureSafelyMutable()
+
+		var current = root.container
+		var cidx = index
+		while case .parental(let children) = current {
+			if cidx < children.left.count {
+				current = children.left
+			} else {
+				cidx -= children.left.count
+				current = children.right
+			}
+		}
+
+		let leaf = current
+		let parent = leaf.parent!
+
+		var sibling =
+			if leaf.isLeftChildOf(parent) {
+				parent.right
+			} else {
+				parent.left
+			}
+
+		if let grandparent = sibling.parent!.parent {
+			if parent.container.isLeftChildOf(grandparent) {
+				grandparent.left = sibling
+			} else {
+				grandparent.right = sibling
+			}
+
+			sibling.parent = grandparent
+
+			return grandparent
+		} else {
+			root.left = sibling
+			root.right = PlowRopeNode(content: "")
+			sibling.parent = root
+
+			return root
+		}
+	}
+
+	/// Performs manipulations to fix imbalances caused by a deletion.
+	///
+	/// - Parameter shortened: Parental node returned by `deleteLeaf(at:)`.
+	private mutating func deletionFixup(dueTo shortened: PlowRopeNode.ParentalNode) {
+		ensureSafelyMutable()
+
+		var n = shortened
+		var p = shortened.parent
+		while let x = p {
+			let g = x.parent
+
+			var b: Int
+			if n.container.isLeftChildOf(x) {
+				if x.balanceFactor > 0 {
+					let z = x.right.asParental()
+					b = z.balanceFactor
+					if b < 0 {
+						n = x.rotateRightLeft()
+					} else {
+						n = x.rotateLeft()
+					}
+				} else if x.balanceFactor == 0 {
+					x.balanceFactor = 1
+					break
+				} else {
+					n = x
+					n.balanceFactor = 0
+					p = g
+					continue
+				}
+			} else {
+				if x.balanceFactor < 0 {
+					let z = x.left.asParental()
+					b = z.balanceFactor
+					if b > 0 {
+						n = x.rotateLeft()
+					} else {
+						n = x.rotateRight()
+					}
+				} else if x.balanceFactor == 0 {
+					x.balanceFactor = -1
+					break
+				} else {
+					n = x
+					n.balanceFactor = 0
+					p = g
+					continue
+				}
+			}
+			n.parent = g
+			if let g {
+				if x.container.isLeftChildOf(g) {
+					g.left = n.container
+				} else {
+					g.right = n.container
+				}
+			} else {
+				self.root = n
+			}
+
+			if b == 0 {
+				break
+			}
+
+			p = g
+		}
+	}
+
+	public mutating func replaceSubrange<R, C>(_ subrange: R, with newElements: C)
+	where C: Collection, R: RangeExpression, Element == C.Element, Index == R.Bound {
+		fatalError("unimplemented")
 	}
 
 	public subscript(index: Int) -> Character {
