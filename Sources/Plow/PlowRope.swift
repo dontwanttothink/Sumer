@@ -379,6 +379,17 @@ public struct PlowRope {
 		self = out
 	}
 
+	public mutating func insert<C>(contentsOf newElements: C, at index: Index)
+	where C: Collection, C.Element == Self.Element {
+		ensureSafelyMutable()
+
+		let new = PlowRope(for: String(newElements))
+		let rest = split(at: index)
+
+		self.join(with: consume new)
+		self.join(with: consume rest)
+	}
+
 	/// Deletes the leaf containing the character at the position `index`. To
 	/// keep a tree structure, the sibling of the deleted leaf may take the
 	/// place of its old parent, or move from being its right child to being its
@@ -525,12 +536,6 @@ public struct PlowRope {
 				with: String(newValue)
 			)
 		}
-	}
-
-	public mutating func insert<C>(contentsOf newElements: C)
-	where C: Collection, C.Element == Self.Element {
-		ensureSafelyMutable()
-
 	}
 
 	// we can implement large insertions through a split
