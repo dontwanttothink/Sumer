@@ -18,7 +18,7 @@ struct SmallRope {
 	}
 
 	@Test("Can be joined together (left bigger than right)") func joinedTogetherLeftRight() {
-		let a = PlowRope(for: "I used to believe wholeheartedly that everything was okay.")
+		var a = PlowRope(for: "I used to believe wholeheartedly that everything was okay.")
 		let b = PlowRope(for: " But is it really?")
 
 		Attachment.record(a.debugDescription, named: "small_join_a.txt")
@@ -35,7 +35,7 @@ struct SmallRope {
 	}
 
 	@Test("Can be joined together (right bigger than left)") func joinedTogetherRightLeft() {
-		let a = PlowRope(for: "I tried to demonstrate it. ")
+		var a = PlowRope(for: "I tried to demonstrate it. ")
 		let b = PlowRope(
 			for: "But it's difficult to ascertain that their intention was malicious.")
 
@@ -48,13 +48,29 @@ struct SmallRope {
 	}
 
 	@Test("Can be joined together (same sizes)") func joinedTogetherSameSize() {
-		let a = PlowRope(for: "If time is meant for liv-")
+		var a = PlowRope(for: "If time is meant for liv-")
 		let b = PlowRope(for: "ing, why's it killing me?")
 		a.join(with: consume b)
 
 		Attachment.record(
 			a.debugDescription, named: "small_join_result_samesize.txt")
 		#expect(String(a) == "If time is meant for liv-ing, why's it killing me?")
+	}
+
+	@Test("Does not share mutations") func doesNotShareMutations() {
+		var a = PlowRope(for: "If time is meant for liv-")
+		var c = a
+		var b = PlowRope(for: "ing, why's it killing me?")
+		a.join(with: b)
+		b.join(with: c)
+		c.join(with: a)
+
+		#expect(String(a) == "If time is meant for liv-ing, why's it killing me?")
+		#expect(String(b) == "ing, why's it killing me?If time is meant for liv-")
+		#expect(
+			String(c)
+				== "If time is meant for liv-If time is meant for liv-ing, why's it killing me?"
+		)
 	}
 
 	@Test("Can produce a debug representation example") func debugRepresentation() {
