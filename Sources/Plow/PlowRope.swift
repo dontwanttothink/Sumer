@@ -362,6 +362,7 @@ public struct PlowRope {
 	///
 	/// - Returns: An instance representing the rest of the graphemes.
 	public mutating func split(at index: Int) -> PlowRope {
+		precondition(index >= 0 && index <= count, "Index out of bounds")
 		ensureSafelyMutable()
 		splitLeaf(at: index)
 
