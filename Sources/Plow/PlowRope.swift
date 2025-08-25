@@ -401,7 +401,7 @@ public struct PlowRope {
 		}
 
 		let (left, right) = _split(from: self.root, at: index)
-		self = PlowRope(withRoot: left.intoParental())
+		self.root = left.intoParental()
 		return PlowRope(withRoot: right.intoParental())
 	}
 
