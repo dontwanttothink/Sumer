@@ -1,4 +1,8 @@
 /// A node inside a ``PlowRope``.
+///
+/// Copies of this enumeration's values do not result in copies of the
+/// underlying data, which is stored dynamically as a class. Therefore, any
+/// changes made through an instance of this enum are visible to copies of it.
 enum PlowRopeNode {
 	/// The maximum size (`count`) of a leaf. In release builds, this value is
 	/// equal to one million. Debug builds use a much smaller value to simulate
@@ -72,6 +76,15 @@ enum PlowRopeNode {
 			case .parental(let node):
 				node.parent = newValue
 			}
+		}
+	}
+	/// A hack needed to modify the parent on `let` variables.
+	private func _setParent(to newValue: PlowRopeNode.ParentalNode) {
+		switch self {
+		case .leaf(let node):
+			node.parent = newValue
+		case .parental(let node):
+			node.parent = newValue
 		}
 	}
 
@@ -196,6 +209,8 @@ enum PlowRopeNode {
 
 		/// `count, `height`, `balanceFactor` are automatically set based on
 		/// the children supplied.
+		///
+		/// `parent` is set on the children supplied.
 		init(
 			leftChild: PlowRopeNode,
 			rightChild: PlowRopeNode
@@ -206,6 +221,9 @@ enum PlowRopeNode {
 			self.count = leftChild.count + rightChild.count
 			self.height = max(leftChild.height, rightChild.height) + 1
 			self.balanceFactor = -leftChild.height + rightChild.height
+
+			leftChild._setParent(to: self)
+			rightChild._setParent(to: self)
 		}
 
 		weak var parent: ParentalNode?
