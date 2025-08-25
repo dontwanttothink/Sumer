@@ -365,7 +365,7 @@ public struct PlowRope {
 	/// to represent only its first `index` graphemes.
 	///
 	/// - Returns: An instance representing the rest of the graphemes.
-	public consuming func split(at index: Int) -> PlowRope {
+	public mutating func split(at index: Int) -> PlowRope {
 		ensureSafelyMutable()
 		splitLeaf(at: index)
 
@@ -380,11 +380,10 @@ public struct PlowRope {
 			/// Indexing offset for the right subtree
 			let offset = node.left.count
 
-			// Due to the leaf split, this should be safe.
-			let nlp = node.left.asParental()
-			let nrp = node.right.asParental()
+			let nlp = node.left.intoParental()
+			let nrp = node.right.intoParental()
 
-			if index < node.left.count {
+			if index < nlp.count {
 				let (l, r) = _split(from: nlp, at: index)
 
 				let rp = r.intoParental()
