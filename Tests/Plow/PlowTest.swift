@@ -73,6 +73,12 @@ struct SmallRope {
 		)
 	}
 
+	@Test("Handles insertions") func canInsert() {
+		var a = PlowRope(for: "I'm the worst in the world.")
+		a.insert(contentsOf: "liar ", at: 14)
+		#expect(String(a) == "I'm the worst liar in the world.")
+	}
+
 	@Test("Can produce a debug representation example") func debugRepresentation() {
 		let p = PlowRope(
 			for:
