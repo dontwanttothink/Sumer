@@ -74,10 +74,10 @@ struct SmallRope {
 	}
 
 	@Test("Can be split") func canSplit() {
-		var a = PlowRope(for: "ABCDEFGH")
-		let b = a.split(at: 4)
-		#expect(String(a) == "ABCD")
-		#expect(String(b) == "EFGH")
+		var a = PlowRope(for: "True love is arriving.You're so cool, I wanna be with you.")
+		let b = a.split(at: 22)
+		#expect(String(a) == "True love is arriving.")
+		#expect(String(b) == "You're so cool, I wanna be with you.")
 	}
 
 	@Test("Handles insertions") func canInsert() {
