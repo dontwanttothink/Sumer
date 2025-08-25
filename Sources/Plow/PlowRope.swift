@@ -63,11 +63,8 @@ public struct PlowRope {
 			)
 		}
 
-		var structure = getStructure(forParts: parts[...])
-		if case .leaf = structure {
-			structure = PlowRopeNode(leftChild: structure)
-		}
-		self.root = structure.asParental()
+		let structure = getStructure(forParts: parts[...]).intoParental()
+		self.root = structure
 	}
 
 	init(withRoot root: PlowRopeNode.ParentalNode) {
