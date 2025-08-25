@@ -224,6 +224,27 @@ enum PlowRopeNode {
 			updateBalanceFactor()
 		}
 
+		func recomputePropertiesUntilRoot() {
+			var current: PlowRopeNode.ParentalNode? = self
+			while let c = current {
+				c.recomputeProperties()
+				current = c.parent
+			}
+		}
+
+		func isRightChildOf(_ other: ParentalNode) -> Bool {
+			guard case .parental(let o) = other.right else {
+				return false
+			}
+			return self === o
+		}
+		func isLeftChildOf(_ other: ParentalNode) -> Bool {
+			guard case .parental(let o) = other.left else {
+				return false
+			}
+			return self === o
+		}
+
 		// NOTE: `height`, `count` and `balanceFactor` must be kept consistent
 		// in rotation methods below. Copies must also be made if necessary.
 

@@ -130,6 +130,7 @@ public struct PlowRope {
 		}
 
 		let newParental = new.asParental()
+		newParental.recomputePropertiesUntilRoot()
 		insertionFixup(dueTo: newParental)
 		return newParental
 	}
@@ -140,58 +141,62 @@ public struct PlowRope {
 	/// The subtree 'new' must be already in AVL shape. Its height must have
 	/// increased by one. This is also a loop invariant.
 	///
+	/// Heights, counts, and balance factors must have already been updated.
+	///
 	/// - Parameter new: A node rooting a subtree with the characteristics
 	/// above.
 	private mutating func insertionFixup(dueTo new: PlowRopeNode.ParentalNode) {
 		ensureSafelyMutable()
 
-		var z = new
-		while let x = z.parent {
-			var n: PlowRopeNode.ParentalNode
-			var g: PlowRopeNode.ParentalNode?
+		var normalized = new
+		while let toNormalize = normalized.parent {
+			var newRoot: PlowRopeNode.ParentalNode
+			var originalParent: PlowRopeNode.ParentalNode?
 
-			if case .parental(let xr) = x.right, z.isIdentical(to: xr) {
-				if x.balanceFactor > 0 {
-					g = x.parent
-					if z.balanceFactor < 0 {
-						n = x.rotateRightLeft()
+			if normalized.isRightChildOf(toNormalize) {
+				if toNormalize.balanceFactor > 0 {
+					originalParent = toNormalize.parent
+					if normalized.balanceFactor < 0 {
+						newRoot = toNormalize.rotateRightLeft()
 					} else {
-						n = x.rotateLeft()
+						newRoot = toNormalize.rotateLeft()
 					}
-				} else if x.balanceFactor < 0 {
-					x.balanceFactor = 0
+				} else if toNormalize.balanceFactor < 0 {
+					toNormalize.balanceFactor = 0
 					break
 				} else {
-					x.balanceFactor = 1
+					toNormalize.balanceFactor = 1
 					continue
 				}
 			} else {
-				if x.balanceFactor < 0 {
-					g = x.parent
-					if z.balanceFactor > 0 {
-						n = x.rotateLeftRight()
+				if toNormalize.balanceFactor < 0 {
+					originalParent = toNormalize.parent
+					if normalized.balanceFactor > 0 {
+						newRoot = toNormalize.rotateLeftRight()
 					} else {
-						n = x.rotateRight()
+						newRoot = toNormalize.rotateRight()
 					}
-				} else if x.balanceFactor > 0 {
-					x.balanceFactor = 0
+				} else if toNormalize.balanceFactor > 0 {
+					toNormalize.balanceFactor = 0
 					break
 				} else {
-					x.balanceFactor = -1
-					z = x
+					toNormalize.balanceFactor = -1
+					normalized = toNormalize
 					continue
 				}
 			}
-			n.parent = g
-			if let g {
-				if x.container.isLeftChildOf(g) {
-					g.left = n.container
+
+			newRoot.parent = originalParent
+			if let originalParent {
+				if toNormalize.isLeftChildOf(originalParent) {
+					originalParent.left = newRoot.container
 				} else {
-					g.right = n.container
+					originalParent.right = newRoot.container
 				}
 			} else {
-				self.root = n
+				self.root = newRoot
 			}
+			break
 		}
 	}
 
@@ -575,5 +580,6 @@ extension PlowRope: CustomDebugStringConvertible {
 }
 
 // Bibliography:
-// - AVL tree in Wikipedia. https://en.wikipedia.org/w/index.php?title=AVL_tree&oldid=1299115771
-// - Rope (data structure) in Wikipedia. https://en.wikipedia.org/w/index.php?title=Rope_(data_structure)&oldid=1290031069
+// - "AVL tree" in Wikipedia. https://en.wikipedia.org/w/index.php?title=AVL_tree&oldid=1299115771
+// - "Rope (data structure)" in Wikipedia. https://en.wikipedia.org/w/index.php?title=Rope_(data_structure)&oldid=1290031069
+// - GNU libavl by Ben Pfaff. https://adtinfo.org/libavl.html/Inserting-into-an-AVL-Tree.html
