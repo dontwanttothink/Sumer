@@ -200,54 +200,6 @@ public struct PlowRope {
 		}
 	}
 
-	/// Update the tree such that the `index` supplied lies at the beginning
-	/// or end of a leaf node, rather than in the middle.
-	///
-	/// The resulting tree may not be balanced.
-	///
-	/// No copies are made.
-	///
-	/// - Returns: the parent of the leaf containing `index`.
-	private mutating func splitLeaf(at index: Int) -> PlowRopeNode.ParentalNode {
-		ensureSafelyMutable()
-
-		let (leaf, pre) = getLeaf(at: index)
-		guard index != pre || index - pre != leaf.count else {
-			return leaf.parent
-		}
-
-		let parent = insertInternode(at: index)
-		let splitIndex = leaf.content.index(leaf.content.startIndex, offsetBy: index - pre)
-
-		let left = leaf.content[
-			..<splitIndex
-		]
-		let right = leaf.content[splitIndex...]
-
-		leaf.content = String(left)
-
-		parent.right.asLeaf().content = String(right)
-
-		return parent
-	}
-
-	/// Splits the rope. The instance on which this method is called is modified
-	/// to represent only its first `index` graphemes.
-	///
-	/// - Returns: An instance representing the rest of the graphemes.
-	public consuming func split(at index: Int) -> PlowRope {
-		ensureSafelyMutable()
-
-		func _split() -> (PlowRopeNode.ParentalNode, PlowRopeNode.ParentalNode) {
-			fatalError("lol")
-		}
-
-		let pre = self.root.left.count
-		if index == pre {
-		}
-		fatalError(":p")
-	}
-
 	/// Helper function to join a tall `right` with a short `left`. The
 	/// resulting tree is balanced.
 	private static func joinLeft(
@@ -338,6 +290,27 @@ public struct PlowRope {
 		}
 	}
 
+	private static func join(left: PlowRopeNode.ParentalNode, right: PlowRopeNode.ParentalNode)
+		-> PlowRopeNode.ParentalNode
+	{
+		if left.height > right.height + 1 {
+			return Self.joinRight(
+				left: left,
+				right: right
+			)
+		}
+		if right.height > left.height + 1 {
+			return Self.joinLeft(
+				left: left,
+				right: right,
+			)
+		}
+		return PlowRopeNode(
+			leftChild: left.container,
+			rightChild: right.container,
+		).asParental()
+	}
+
 	/// Returns a new rope with the content of `right` after the content of this
 	/// rope.
 	///
@@ -357,32 +330,79 @@ public struct PlowRope {
 	/// The resulting tree is balanced.
 	public mutating func join(with right: consuming PlowRope) {
 		ensureSafelyMutable()
+		self = PlowRope(withRoot: Self.join(left: self.root, right: right.root))
+	}
 
-		if self.root.height > right.root.height + 1 {
-			self = PlowRope(
-				withRoot:
-					Self.joinRight(
-						left: self.root,
-						right: right.root
-					)
-			)
-		}
-		if right.root.height > self.root.height + 1 {
-			self = PlowRope(
-				withRoot:
-					Self.joinLeft(
-						left: self.root,
-						right: right.root,
-					)
-			)
+	/// Possibly update the tree to ensure that the `index` supplied lies at the
+	/// beginning or end of a leaf node, rather than in the middle.
+	///
+	/// The resulting tree is balanced.
+	///
+	/// - Returns: the parent of the leaf containing `index`.
+	@discardableResult private mutating func splitLeaf(at index: Int)
+		-> PlowRopeNode.ParentalNode
+	{
+		ensureSafelyMutable()
+
+		let (leaf, pre) = getLeaf(at: index)
+		guard index != pre || index - pre != leaf.count else {
+			return leaf.parent
 		}
 
-		var out = PlowRope()
-		out.root = PlowRopeNode(
-			leftChild: self.root.container,
-			rightChild: right.root.container,
-		).asParental()
-		self = out
+		let parent = insertInternode(at: index)
+		let splitIndex = leaf.content.index(leaf.content.startIndex, offsetBy: index - pre)
+
+		let left = leaf.content[
+			..<splitIndex
+		]
+		let right = leaf.content[splitIndex...]
+
+		leaf.content = String(left)
+
+		parent.right.asLeaf().content = String(right)
+
+		return parent
+	}
+
+	/// Splits the rope. The instance on which this method is called is modified
+	/// to represent only its first `index` graphemes.
+	///
+	/// - Returns: An instance representing the rest of the graphemes.
+	public consuming func split(at index: Int) -> PlowRope {
+		ensureSafelyMutable()
+		splitLeaf(at: index)
+
+		/// Requires the leaf to be split at index.
+		func _split(from node: PlowRopeNode.ParentalNode, at index: Int) -> (
+			PlowRopeNode, PlowRopeNode
+		) {
+			if index == node.left.count {
+				return (node.left, node.right)
+			}
+
+			/// Indexing offset for the right subtree
+			let offset = node.left.count
+
+			// Due to the leaf split, this should be safe.
+			let nlp = node.left.asParental()
+			let nrp = node.right.asParental()
+
+			if index < node.left.count {
+				let (l, r) = _split(from: nlp, at: index)
+
+				let rp = r.intoParental()
+				return (l, Self.join(left: rp, right: nrp).container)
+			}
+
+			let (l, r) = _split(from: nrp, at: index - offset)
+
+			let lp = l.intoParental()
+			return (Self.join(left: nlp, right: lp).container, r)
+		}
+
+		let (left, right) = _split(from: self.root, at: index)
+		self = PlowRope(withRoot: left.intoParental())
+		return PlowRope(withRoot: right.intoParental())
 	}
 
 	public mutating func insert<C>(contentsOf newElements: C, at index: Index)

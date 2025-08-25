@@ -133,6 +133,21 @@ enum PlowRopeNode {
 		}
 		return node
 	}
+
+	/// Infallibly produces a parental node based on this node. If the node is
+	/// already parental, no changes are made. If the node is a leaf, it is
+	/// wrapped in a parental node of which it becomes the left child. In the
+	/// latter case, any existing structure the leaf may have been a part of
+	/// becomes invalid.
+	func intoParental() -> PlowRopeNode.ParentalNode {
+		switch self {
+		case .parental(let p):
+			return p
+		case .leaf:
+			return PlowRopeNode(leftChild: self).asParental()
+		}
+	}
+
 	/// Obtain the leaf node corresponding to this node. A crash occurs if this
 	/// method is called on a parental node.
 	///
