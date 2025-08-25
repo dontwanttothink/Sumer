@@ -71,7 +71,11 @@ public struct PlowRope {
 		self.root = root
 	}
 
-	/// Call this function before making changes to the tree structure.
+	/// Call this function before making changes to the tree structure. The root
+	/// and its descendants will possibly be copied. Existing bindings cannot be
+	/// updated. Thus, if your function uses nodes passed by the caller, do not
+	/// call this function — it is the caller's responsibility to perform this
+	/// check before accessing the tree structure instead.
 	///
 	/// - Complexity: Θ(n) in the worst case.
 	private mutating func ensureSafelyMutable() {
@@ -99,32 +103,26 @@ public struct PlowRope {
 		return (current.asLeaf(), index - cidx)
 	}
 
-	/// Inserts a new internode (non-content) suitable for large text insertion
-	/// at `index`.
+	/// Inserts a new internode (non-content) in `leaf`'s position.
 	///
-	/// The resulting tree may be unbalanced. Sizes remain correct.
-	///
-	/// Copies are made automatically, if necessary, to avoid corrupting other
-	/// structure values sharing the same underlying heap memory.
+	/// The resulting tree may be unbalanced. Sizes, heights and balance factors
+	/// remain correct.
 	///
 	/// - Returns: The inserted internode.
-	private mutating func insertInternode(at index: Int) -> PlowRopeNode.ParentalNode {
-		precondition(index >= 0 && index < self.count, "Index out of bounds")
-		ensureSafelyMutable()
+	private mutating func insertInternode(at leaf: PlowRopeNode.LeafNode)
+		-> PlowRopeNode.ParentalNode
+	{
+		let oldLeaf = leaf
+		let oldParent = leaf.parent!
 
-		// We query 'index - 1' because we prefer the left node for an insertion
-		// at the boundary between two siblings.
-		let oldLeaf = getLeaf(at: index - 1).0.container
-		let oldParent = oldLeaf.parent!
+		var new = PlowRopeNode(leftChild: oldLeaf.container)
 
-		var new = PlowRopeNode(leftChild: oldLeaf)
-		new.parent = oldParent
-
-		if oldLeaf.isLeftChildOf(oldParent) {
+		if oldLeaf.container.isLeftChildOf(oldParent) {
 			oldParent.left = new
 		} else {
 			oldParent.right = new
 		}
+		new.parent = oldParent
 
 		let newParental = new.asParental()
 		newParental.recomputePropertiesUntilRoot()
@@ -143,8 +141,6 @@ public struct PlowRope {
 	/// - Parameter new: A node rooting a subtree with the characteristics
 	/// above, such as the return value of ``insertInternode(at:)``
 	private mutating func insertionFixup(dueTo new: PlowRopeNode.ParentalNode) {
-		ensureSafelyMutable()
-
 		var normalized = new
 		while let toNormalize = normalized.parent {
 			var newRoot: PlowRopeNode.ParentalNode
@@ -163,6 +159,7 @@ public struct PlowRope {
 					break
 				} else {
 					toNormalize.balanceFactor = 1
+					normalized = toNormalize
 					continue
 				}
 			} else {
@@ -334,19 +331,15 @@ public struct PlowRope {
 	/// beginning or end of a leaf node, rather than in the middle.
 	///
 	/// The resulting tree is balanced.
-	///
-	/// - Returns: the parent of the leaf containing `index`.
-	@discardableResult private mutating func splitLeaf(at index: Int)
-		-> PlowRopeNode.ParentalNode
-	{
+	private mutating func splitLeaf(at index: Int) {
 		ensureSafelyMutable()
 
 		let (leaf, pre) = getLeaf(at: index)
-		guard index != pre || index - pre != leaf.count else {
-			return leaf.parent
+		guard index != pre && index - pre != leaf.count else {
+			return
 		}
 
-		let parent = insertInternode(at: index)
+		let parent = insertInternode(at: leaf)
 		let splitIndex = leaf.content.index(leaf.content.startIndex, offsetBy: index - pre)
 
 		let left = leaf.content[
@@ -357,9 +350,11 @@ public struct PlowRope {
 		leaf.content = String(left)
 		parent.right.asLeaf().content = String(right)
 
+		parent.recomputePropertiesUntilRoot()
+
 		insertionFixup(dueTo: parent)
 
-		return parent
+		assert(index == pre || index - pre == leaf.count, "Incorrect after")
 	}
 
 	/// Splits the rope. The instance on which this method is called is modified
@@ -371,9 +366,9 @@ public struct PlowRope {
 		splitLeaf(at: index)
 
 		/// Requires the leaf to be split at index.
-		func _split(from node: PlowRopeNode.ParentalNode, at index: Int) -> (
-			PlowRopeNode, PlowRopeNode
-		) {
+		func _split(from node: PlowRopeNode.ParentalNode, at index: Int)
+			-> (PlowRopeNode, PlowRopeNode)
+		{
 			if index == node.left.count {
 				return (node.left, node.right)
 			}
