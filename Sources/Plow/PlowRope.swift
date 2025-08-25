@@ -370,7 +370,13 @@ public struct PlowRope {
 		func _split(from node: PlowRopeNode.ParentalNode, at index: Int)
 			-> (PlowRopeNode, PlowRopeNode)
 		{
+			defer {
+				debugPrint()
+			}
 			if index == node.left.count {
+				debugPrint("LEFT", node.left)
+				debugPrint("RIGHT", node.right)
+
 				return (node.left, node.right)
 			}
 
@@ -384,12 +390,18 @@ public struct PlowRope {
 				let (l, r) = _split(from: nlp, at: index)
 
 				let rp = r.intoParental()
+
+				debugPrint("LEFT", l)
+				debugPrint("RIGHT", Self.join(left: rp, right: nrp).container)
 				return (l, Self.join(left: rp, right: nrp).container)
 			}
 
 			let (l, r) = _split(from: nrp, at: index - offset)
 
 			let lp = l.intoParental()
+
+			debugPrint("LEFT", Self.join(left: nlp, right: lp).container)
+			debugPrint("RIGHT", r)
 			return (Self.join(left: nlp, right: lp).container, r)
 		}
 
