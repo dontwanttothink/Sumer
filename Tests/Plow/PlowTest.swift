@@ -73,6 +73,13 @@ struct SmallRope {
 		)
 	}
 
+	@Test("Can be split") func canSplit() {
+		var a = PlowRope(for: "ABCDEFGH")
+		let b = a.split(at: 4)
+		#expect(String(a) == "ABCD")
+		#expect(String(b) == "EFGH")
+	}
+
 	@Test("Handles insertions") func canInsert() {
 		var a = PlowRope(for: "I'm the worst in the world.")
 		a.insert(contentsOf: "liar ", at: 14)
