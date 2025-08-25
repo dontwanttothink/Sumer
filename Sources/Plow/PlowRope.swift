@@ -115,15 +115,15 @@ public struct PlowRope {
 		// We query 'index - 1' because we prefer the left node for an insertion
 		// at the boundary between two siblings.
 		let oldLeaf = getLeaf(at: index - 1).0.container
+		let oldParent = oldLeaf.parent!
 
 		var new = PlowRopeNode(leftChild: oldLeaf)
-		new.parent = oldLeaf.parent
+		new.parent = oldParent
 
-		let parent = oldLeaf.parent!
-		if oldLeaf.isLeftChildOf(parent) {
-			parent.left = new
+		if oldLeaf.isLeftChildOf(oldParent) {
+			oldParent.left = new
 		} else {
-			parent.right = new
+			oldParent.right = new
 		}
 
 		let newParental = new.asParental()
