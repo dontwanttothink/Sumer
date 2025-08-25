@@ -327,7 +327,7 @@ public struct PlowRope {
 	/// The resulting tree is balanced.
 	public mutating func join(with right: consuming PlowRope) {
 		ensureSafelyMutable()
-		self = PlowRope(withRoot: Self.join(left: self.root, right: right.root))
+		self.root = Self.join(left: self.root, right: right.root)
 	}
 
 	/// Possibly update the tree to ensure that the `index` supplied lies at the
