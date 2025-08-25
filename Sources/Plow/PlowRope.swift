@@ -102,7 +102,7 @@ public struct PlowRope {
 	/// Inserts a new internode (non-content) suitable for large text insertion
 	/// at `index`.
 	///
-	/// The resulting tree is balanced. Sizes remain correct.
+	/// The resulting tree may be unbalanced. Sizes remain correct.
 	///
 	/// Copies are made automatically, if necessary, to avoid corrupting other
 	/// structure values sharing the same underlying heap memory.
@@ -128,7 +128,7 @@ public struct PlowRope {
 
 		let newParental = new.asParental()
 		newParental.recomputePropertiesUntilRoot()
-		insertionFixup(dueTo: newParental)
+
 		return newParental
 	}
 
@@ -141,7 +141,7 @@ public struct PlowRope {
 	/// Heights, counts, and balance factors must have already been updated.
 	///
 	/// - Parameter new: A node rooting a subtree with the characteristics
-	/// above.
+	/// above, such as the return value of ``insertInternode(at:)``
 	private mutating func insertionFixup(dueTo new: PlowRopeNode.ParentalNode) {
 		ensureSafelyMutable()
 
@@ -355,8 +355,9 @@ public struct PlowRope {
 		let right = leaf.content[splitIndex...]
 
 		leaf.content = String(left)
-
 		parent.right.asLeaf().content = String(right)
+
+		insertionFixup(dueTo: parent)
 
 		return parent
 	}
