@@ -50,7 +50,7 @@ public struct PlowRope {
 	public init() {
 		self.init(for: "")
 	}
-	/// - Complexity: Θ(n)
+	/// - Complexity: Θ(n log n)
 	public init(for str: String) {
 		let parts = str.splitIntoGraphemeParts(
 			of: PlowRopeNode.maxLeafCount
