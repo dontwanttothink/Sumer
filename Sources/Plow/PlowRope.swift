@@ -354,7 +354,13 @@ public struct PlowRope {
 
 		insertionFixup(dueTo: parent)
 
-		assert(index == pre || index - pre == leaf.count, "Incorrect after")
+		assert(
+			{
+				let (leaf, pre) = getLeaf(at: index)
+				return index == pre || index - pre == leaf.count
+			}(),
+			"split: incorrect after"
+		)
 	}
 
 	/// Splits the rope. The instance on which this method is called is modified
