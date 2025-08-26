@@ -37,6 +37,10 @@ extension ArraySlice {
 	}
 }
 
+// note: Ensure that the number of nodes is Θ(n) the length of the string
+// (.count, by extended grapheme clusters), or complexity characteristics won't
+// hold.
+
 public struct PlowRope {
 	/// The root is never a leaf node.
 	private var root: PlowRopeNode.ParentalNode
