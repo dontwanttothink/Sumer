@@ -342,9 +342,7 @@ public struct PlowRope {
 		let parent = insertInternode(at: leaf)
 		let splitIndex = leaf.content.index(leaf.content.startIndex, offsetBy: index - pre)
 
-		let left = leaf.content[
-			..<splitIndex
-		]
+		let left = leaf.content[..<splitIndex]
 		let right = leaf.content[splitIndex...]
 
 		leaf.content = String(left)
