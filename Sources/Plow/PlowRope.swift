@@ -107,7 +107,8 @@ public struct PlowRope {
 		return (current.asLeaf(), index - cidx)
 	}
 
-	/// Inserts a new internode (non-content) in `leaf`'s position.
+	/// Inserts a new internode (non-content) in `leaf`'s position. The original
+	/// leaf is moved to the new internode's left child.
 	///
 	/// The resulting tree may be unbalanced. Sizes, heights and balance factors
 	/// remain correct.
