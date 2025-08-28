@@ -248,7 +248,7 @@ public struct PlowRope {
 	/// resulting tree is balanced.
 	private static func joinRight(
 		left: PlowRopeNode.ParentalNode,
-		right: PlowRopeNode.ParentalNode
+		right: PlowRopeNode
 	) -> PlowRopeNode.ParentalNode {
 		// 'left' is too tall: two or more levels taller.
 
@@ -257,7 +257,7 @@ public struct PlowRope {
 
 			let glueChild = PlowRopeNode(
 				leftChild: left.right,
-				rightChild: right.container,
+				rightChild: right,
 			)
 			if glueChild.height <= left.left.height + 1 {
 				return PlowRopeNode(
@@ -266,25 +266,21 @@ public struct PlowRope {
 			} else {
 				return PlowRopeNode(
 					leftChild: left.left,
-					rightChild: {
-						let r = glueChild.asParental()
-						r.rotateRight()
-						return r
-					}().container,
-				).asParental()
+					rightChild: glueChild.asParental().rotateRight().container,
+				).asParental().rotateLeft()
 			}
 		} else {
 			// left.right's height is still at least two more than right's
 
-			let glueChild = joinRight(left: left.right.asParental(), right: right)
-			let glueChildChild = PlowRopeNode(
-				leftChild: left.container, rightChild: glueChild.container
+			let glueChildChild = joinRight(left: left.right.asParental(), right: right)
+			let glueChild = PlowRopeNode(
+				leftChild: left.left, rightChild: glueChildChild.container
 			).asParental()
 
 			if glueChild.height <= left.left.height + 1 {
-				return glueChildChild
+				return glueChild
 			} else {
-				return glueChildChild.rotateLeft()
+				return glueChild.rotateLeft()
 			}
 		}
 	}
