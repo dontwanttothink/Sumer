@@ -122,7 +122,7 @@ public struct PlowRope {
 
 		var new = PlowRopeNode(leftChild: oldLeaf.container)
 
-		if oldLeaf.container.isLeftChildOf(oldParent) {
+		if oldPositionIsLeft {
 			oldParent.left = new
 		} else {
 			oldParent.right = new
