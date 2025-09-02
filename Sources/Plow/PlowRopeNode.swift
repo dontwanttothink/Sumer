@@ -78,15 +78,6 @@ enum PlowRopeNode {
 			}
 		}
 	}
-	/// A hack needed to modify the parent on `let` variables.
-	private func _setParent(to newValue: PlowRopeNode.ParentalNode) {
-		switch self {
-		case .leaf(let node):
-			node.parent = newValue
-		case .parental(let node):
-			node.parent = newValue
-		}
-	}
 
 	/// Avoid using this property; it is only necessary in rare cases. Instead,
 	/// perform pattern-matching on `.data`.
@@ -215,15 +206,18 @@ enum PlowRopeNode {
 			leftChild: PlowRopeNode,
 			rightChild: PlowRopeNode
 		) {
-			self.left = leftChild
-			self.right = rightChild
+			var left = leftChild
+			var right = rightChild
 
-			self.count = leftChild.count + rightChild.count
-			self.height = max(leftChild.height, rightChild.height) + 1
-			self.balanceFactor = -leftChild.height + rightChild.height
+			self.left = left
+			self.right = right
 
-			leftChild._setParent(to: self)
-			rightChild._setParent(to: self)
+			self.count = left.count + right.count
+			self.height = max(left.height, right.height) + 1
+			self.balanceFactor = -left.height + right.height
+
+			left.parent = self
+			right.parent = self
 		}
 
 		weak var parent: ParentalNode?
