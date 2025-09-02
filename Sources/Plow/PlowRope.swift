@@ -302,8 +302,7 @@ public struct PlowRope {
 		).asParental()
 	}
 
-	/// Returns a new rope with the content of `right` after the content of this
-	/// rope.
+	/// Concatenates the content of `right` at the end of this rope.
 	///
 	/// **Avoid expensive copies**
 	///
