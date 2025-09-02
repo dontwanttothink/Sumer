@@ -107,3 +107,24 @@ struct SmallRope {
 		Attachment.record(p.debugDescription, named: "representation_example.txt")
 	}
 }
+
+@Suite("Rope: Tiny Strings")
+struct TinyRope {
+	@Test("Can be indexed") func indexing() {
+		let a = PlowRope(for: "a")
+		#expect(a[0] == "a")
+	}
+
+	@Test("Can be converted into a string") func convertToString() {
+		let a = PlowRope(for: "a")
+		#expect(String(a) == "a")
+	}
+
+	@Test("Can be joined together (same size)") func joinedTogetherSameSize() {
+		var a = PlowRope(for: "a")
+		let b = PlowRope(for: "b")
+		a.join(with: consume b)
+
+		#expect(String(a) == "ab")
+	}
+}
