@@ -628,5 +628,5 @@ extension PlowRope: CustomDebugStringConvertible {
 
 // Bibliography:
 // - "AVL tree" in Wikipedia. https://en.wikipedia.org/w/index.php?title=AVL_tree&oldid=1299115771
-// - "Rope (data structure)" in Wikipedia. https://en.wikipedia.org/w/index.php?title=Rope_(data_structure)&oldid=1290031069
 // - GNU libavl by Ben Pfaff. https://adtinfo.org/libavl.html/Inserting-into-an-AVL-Tree.html
+// - "Rope (data structure)" in Wikipedia. https://en.wikipedia.org/w/index.php?title=Rope_(data_structure)&oldid=1290031069
