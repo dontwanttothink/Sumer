@@ -291,12 +291,12 @@ public struct PlowRope {
 		if left.height > right.height + 1 {
 			return Self.joinRight(
 				left: left,
-				right: right
+				right: right.container
 			)
 		}
 		if right.height > left.height + 1 {
 			return Self.joinLeft(
-				left: left,
+				left: left.container,
 				right: right,
 			)
 		}
