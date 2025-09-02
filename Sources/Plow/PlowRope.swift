@@ -119,6 +119,7 @@ public struct PlowRope {
 	{
 		let oldLeaf = leaf
 		let oldParent = leaf.parent!
+		let oldPositionIsLeft = oldLeaf.container.isLeftChildOf(oldParent)
 
 		var new = PlowRopeNode(leftChild: oldLeaf.container)
 
