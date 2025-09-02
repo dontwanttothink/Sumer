@@ -47,6 +47,12 @@ struct SmallRope {
 		)
 	}
 
+	@Test("Can be joined together (additional case)") func joinedTogetherExtra() {
+		var pr = PlowRope(for: "You're s")
+		pr.join(with: PlowRope(for: "o cool, I wanna be with you."))
+		#expect(String(pr) == "You're so cool, I wanna be with you.")
+	}
+
 	@Test("Can be joined together (same sizes)") func joinedTogetherSameSize() {
 		var a = PlowRope(for: "If time is meant for liv-")
 		let b = PlowRope(for: "ing, why's it killing me?")
