@@ -203,7 +203,7 @@ public struct PlowRope {
 	/// Helper function to join a tall `right` with a short `left`. The
 	/// resulting tree is balanced.
 	private static func joinLeft(
-		left: PlowRopeNode.ParentalNode,
+		left: PlowRopeNode,
 		right: PlowRopeNode.ParentalNode
 	) -> PlowRopeNode.ParentalNode {
 		// 'right' is too tall: two or more levels taller.
@@ -212,36 +212,31 @@ public struct PlowRope {
 			// right.left is the correct height
 
 			let glueChild = PlowRopeNode(
-				leftChild: right.left,
-				rightChild: left.container
+				leftChild: left,
+				rightChild: right.left,
 			)
 			if glueChild.height <= right.right.height + 1 {
 				return PlowRopeNode(
-					leftChild: left.left,
-					rightChild: glueChild
+					leftChild: glueChild, rightChild: right.right
 				).asParental()
 			} else {
 				return PlowRopeNode(
-					leftChild: left.left,
-					rightChild: {
-						let r = glueChild.asParental()
-						r.rotateLeft()
-						return r
-					}().container
-				).asParental()
+					leftChild: glueChild.asParental().rotateLeft().container,
+					rightChild: right.right,
+				).asParental().rotateRight()
 			}
 		} else {
 			// right.left's height is still at least two more than left's
 
-			let glueChild = joinLeft(left: left, right: right.left.asParental())
-			let glueChildChild = PlowRopeNode(
-				leftChild: glueChild.container, rightChild: right.container
+			let glueChildChild = joinLeft(left: left, right: right.left.asParental())
+			let glueChild = PlowRopeNode(
+				leftChild: glueChildChild.container, rightChild: right.right
 			).asParental()
 
-			if glueChild.height <= right.right.height + 1 {
-				return glueChildChild
+			if glueChildChild.height <= right.right.height + 1 {
+				return glueChild
 			} else {
-				return glueChildChild.rotateRight()
+				return glueChild.rotateRight()
 			}
 		}
 	}
@@ -332,23 +327,31 @@ public struct PlowRope {
 	/// Possibly update the tree to ensure that the `index` supplied lies at the
 	/// beginning or end of a leaf node, rather than in the middle.
 	///
-	/// The resulting tree is balanced.
-	private mutating func splitLeaf(at index: Int) {
+	/// The resulting tree is balanced. Heights, balance factors, and counts
+	/// remain corrext.
+	///
+	/// - Returns: the two sides of the boundary, one of which may be a
+	/// parental node.
+	private mutating func splitLeaf(at absoluteIndex: Int) {
 		ensureSafelyMutable()
 
-		let (leaf, pre) = getLeaf(at: index)
-		guard index != pre && index - pre != leaf.count else {
+		let (leaf, pre) = getLeaf(at: absoluteIndex)
+		let index = absoluteIndex - pre
+
+		assert(index >= 0 && index <= leaf.count)
+
+		guard index != 0 && index != leaf.count else {
 			return
 		}
 
 		let parent = insertInternode(at: leaf)
-		let splitIndex = leaf.content.index(leaf.content.startIndex, offsetBy: index - pre)
+		let splitIndex = leaf.content.index(leaf.content.startIndex, offsetBy: index)
 
-		let left = leaf.content[..<splitIndex]
-		let right = leaf.content[splitIndex...]
+		let leftContent = leaf.content[..<splitIndex]
+		let rightContent = leaf.content[splitIndex...]
 
-		leaf.content = String(left)
-		parent.right.asLeaf().content = String(right)
+		leaf.content = String(leftContent)
+		parent.right.asLeaf().content = String(rightContent)
 
 		parent.recomputePropertiesUntilRoot()
 
@@ -356,8 +359,8 @@ public struct PlowRope {
 
 		assert(
 			{
-				let (leaf, pre) = getLeaf(at: index)
-				return index == pre || index - pre == leaf.count
+				let (leaf, pre) = getLeaf(at: absoluteIndex)
+				return absoluteIndex == pre || absoluteIndex - pre == leaf.count
 			}(),
 			"split: incorrect after"
 		)
@@ -376,39 +379,44 @@ public struct PlowRope {
 		func _split(from node: PlowRopeNode.ParentalNode, at index: Int)
 			-> (PlowRopeNode, PlowRopeNode)
 		{
-			defer {
-				debugPrint()
-			}
-			if index == node.left.count {
-				debugPrint("LEFT", node.left)
-				debugPrint("RIGHT", node.right)
-
+			if node.left.count == index {
 				return (node.left, node.right)
 			}
 
 			/// Indexing offset for the right subtree
 			let offset = node.left.count
 
-			let nlp = node.left.intoParental()
-			let nrp = node.right.intoParental()
+			if index < node.left.count {
+				assert(node.left.isParental)
+				var (l, r) = _split(from: node.left.asParental(), at: index)
 
-			if index < nlp.count {
-				let (l, r) = _split(from: nlp, at: index)
+				r.parent = nil
+				l.parent = nil
+				node.right.parent = nil
 
-				let rp = r.intoParental()
-
-				debugPrint("LEFT", l)
-				debugPrint("RIGHT", Self.join(left: rp, right: nrp).container)
-				return (l, Self.join(left: rp, right: nrp).container)
+				return (
+					l,
+					Self.join(
+						left: r.intoParental(),
+						right: node.right.intoParental()
+					).container,
+				)
 			}
 
-			let (l, r) = _split(from: nrp, at: index - offset)
+			assert(node.right.isParental)
+			var (l, r) = _split(from: node.right.asParental(), at: index - offset)
 
-			let lp = l.intoParental()
+			l.parent = nil
+			r.parent = nil
+			node.left.parent = nil
 
-			debugPrint("LEFT", Self.join(left: nlp, right: lp).container)
-			debugPrint("RIGHT", r)
-			return (Self.join(left: nlp, right: lp).container, r)
+			return (
+				Self.join(
+					left: node.left.intoParental(),
+					right: l.intoParental()
+				).container,
+				r
+			)
 		}
 
 		let (left, right) = _split(from: self.root, at: index)
