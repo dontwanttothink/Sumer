@@ -2,7 +2,53 @@ import Testing
 
 @testable import Plow
 
-@Suite("Rope: Small Strings")
+// Note:
+// Debug builds of Plow are configured to use a much lower leaf size than normal
+// to allow for complex tree structures in ropes of a manageable size.
+
+@Suite("Rope: Operations on Tiny Strings")
+struct TinyRope {
+	@Test("Can be indexed") func indexing() {
+		let a = PlowRope(for: "a")
+		#expect(a[0] == "a")
+	}
+
+	@Test("Can be converted into a string") func convertToString() {
+		let a = PlowRope(for: "a")
+		#expect(String(a) == "a")
+	}
+
+	@Test("Can be joined together (same size)") func joinedTogetherSameSize() {
+		var a = PlowRope(for: "a")
+		let b = PlowRope(for: "b")
+		a.join(with: consume b)
+
+		#expect(String(a) == "ab")
+	}
+
+	@Test("Can be joined together (tall right)") func joinedTogetherTallRight() {
+		var a = PlowRope(for: "a")
+		let b = PlowRope(for: "bcdefgh")
+		a.join(with: consume b)
+		#expect(String(a) == "abcdefgh")
+	}
+
+	@Test("Can be joined together (tall left)") func joinedTogetherTallLeft() {
+		var a = PlowRope(for: "abcdefg")
+		let b = PlowRope(for: "h")
+		a.join(with: consume b)
+		#expect(String(a) == "abcdefgh")
+	}
+
+	@Test("Can be split") func canSplit() {
+		var a = PlowRope(for: "ab")
+		let b = a.split(at: 1)
+		#expect(String(a) == "a")
+		#expect(String(b) == "b")
+	}
+}
+
+@Suite("Rope: Basic Operations")
 struct SmallRope {
 	@Test("Can be indexed correctly") func indexing() {
 		let pr = PlowRope(for: "Hello, how are you?")
@@ -15,52 +61,6 @@ struct SmallRope {
 	@Test("Can be converted into a string") func convertToString() {
 		let pr = PlowRope(for: "I'm okay.")
 		#expect(String(pr) == "I'm okay.")
-	}
-
-	@Test("Can be joined together (left bigger than right)") func joinedTogetherLeftRight() {
-		var a = PlowRope(for: "I used to believe wholeheartedly that everything was okay.")
-		let b = PlowRope(for: " But is it really?")
-
-		Attachment.record(a.debugDescription, named: "small_join_a.txt")
-		Attachment.record(b.debugDescription, named: "small_join_b.txt")
-
-		a.join(with: consume b)
-		Attachment.record(
-			a.debugDescription, named: "small_join_result_rightbig.txt")
-
-		#expect(
-			String(a)
-				== "I used to believe wholeheartedly that everything was okay. But is it really?"
-		)
-	}
-
-	@Test("Can be joined together (right bigger than left)") func joinedTogetherRightLeft() {
-		var a = PlowRope(for: "I tried to demonstrate it. ")
-		let b = PlowRope(
-			for: "But it's difficult to ascertain that their intention was malicious.")
-
-		a.join(with: consume b)
-		Attachment.record(a.debugDescription, named: "small_join_result_leftbig.txt")
-		#expect(
-			String(a)
-				== "I tried to demonstrate it. But it's difficult to ascertain that their intention was malicious."
-		)
-	}
-
-	@Test("Can be joined together (additional case)") func joinedTogetherExtra() {
-		var pr = PlowRope(for: "You're s")
-		pr.join(with: PlowRope(for: "o cool, I wanna be with you."))
-		#expect(String(pr) == "You're so cool, I wanna be with you.")
-	}
-
-	@Test("Can be joined together (same sizes)") func joinedTogetherSameSize() {
-		var a = PlowRope(for: "If time is meant for liv-")
-		let b = PlowRope(for: "ing, why's it killing me?")
-		a.join(with: consume b)
-
-		Attachment.record(
-			a.debugDescription, named: "small_join_result_samesize.txt")
-		#expect(String(a) == "If time is meant for liv-ing, why's it killing me?")
 	}
 
 	@Test("Does not share mutations") func doesNotShareMutations() {
@@ -106,25 +106,59 @@ struct SmallRope {
 		)
 		Attachment.record(p.debugDescription, named: "representation_example.txt")
 	}
+
+	@Test("Handles subrange replacement") func subrangeReplacement() {
+		var a = PlowRope(for: "I love apples, oranges, cats and dogs.")
+		a.replaceSubrange(24..<28, with: "mice")
+		#expect(String(a) == "I love apples, oranges, mice and dogs.")
+	}
 }
 
-@Suite("Rope: Tiny Strings")
-struct TinyRope {
-	@Test("Can be indexed") func indexing() {
-		let a = PlowRope(for: "a")
-		#expect(a[0] == "a")
+@Suite("Rope: Joining")
+struct JoiningRopes {
+	@Test("Can be joined together (left bigger than right)") func joinedTogetherLeftRight() {
+		var a = PlowRope(for: "I used to believe wholeheartedly that everything was okay.")
+		let b = PlowRope(for: " But is it really?")
+
+		Attachment.record(a.debugDescription, named: "small_join_a.txt")
+		Attachment.record(b.debugDescription, named: "small_join_b.txt")
+
+		a.join(with: consume b)
+		Attachment.record(
+			a.debugDescription, named: "small_join_result_rightbig.txt")
+
+		#expect(
+			String(a)
+				== "I used to believe wholeheartedly that everything was okay. But is it really?"
+		)
 	}
 
-	@Test("Can be converted into a string") func convertToString() {
-		let a = PlowRope(for: "a")
-		#expect(String(a) == "a")
+	@Test("Can be joined together (right bigger than left)") func joinedTogetherRightLeft() {
+		var a = PlowRope(for: "I tried to demonstrate it. ")
+		let b = PlowRope(
+			for: "But it's difficult to ascertain that their intention was malicious.")
+
+		a.join(with: consume b)
+		Attachment.record(a.debugDescription, named: "small_join_result_leftbig.txt")
+		#expect(
+			String(a)
+				== "I tried to demonstrate it. But it's difficult to ascertain that their intention was malicious."
+		)
 	}
 
-	@Test("Can be joined together (same size)") func joinedTogetherSameSize() {
-		var a = PlowRope(for: "a")
-		let b = PlowRope(for: "b")
+	@Test("Can be joined together (additional case)") func joinedTogetherExtra() {
+		var pr = PlowRope(for: "You're s")
+		pr.join(with: PlowRope(for: "o cool, I wanna be with you."))
+		#expect(String(pr) == "You're so cool, I wanna be with you.")
+	}
+
+	@Test("Can be joined together (same sizes)") func joinedTogetherSameSize() {
+		var a = PlowRope(for: "If time is meant for liv-")
+		let b = PlowRope(for: "ing, why's it killing me?")
 		a.join(with: consume b)
 
-		#expect(String(a) == "ab")
+		Attachment.record(
+			a.debugDescription, named: "small_join_result_samesize.txt")
+		#expect(String(a) == "If time is meant for liv-ing, why's it killing me?")
 	}
 }
