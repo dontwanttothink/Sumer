@@ -558,8 +558,15 @@ public struct PlowRope {
 	/// - Complexity: Θ(lg n + m), where 'n' is the length of the rope and 'm'
 	/// is the cost of iterating the collection provided. (Intended.)
 	public mutating func replaceSubrange<R, C>(_ subrange: R, with newElements: C)
-	where C: Collection, R: RangeExpression, Element == C.Element, Index == R.Bound {
-		fatalError("unimplemented")
+	where C: Collection, R: RangeExpression, Index == R.Bound, Element == C.Element {
+		let indices = subrange.relative(to: self)
+
+		let r = self.split(at: indices.endIndex)
+		_ = self.split(at: indices.startIndex)
+
+		let new = PlowRope(for: String(newElements))
+		self.join(with: consume new)
+		self.join(with: consume r)
 	}
 
 	public subscript(index: Int) -> Character {
