@@ -277,7 +277,7 @@ public struct PlowRope {
 				leftChild: left.left, rightChild: glueChildChild.container
 			).asParental()
 
-			if glueChild.height <= left.left.height + 1 {
+			if glueChildChild.height <= left.left.height + 1 {
 				return glueChild
 			} else {
 				return glueChild.rotateLeft()
