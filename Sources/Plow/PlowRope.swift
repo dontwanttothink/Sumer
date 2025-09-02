@@ -50,7 +50,7 @@ public struct PlowRope {
 	public init() {
 		self.init(for: "")
 	}
-	/// - Complexity: Θ(n)
+	/// - Complexity: Θ(n) (Intended.)
 	public init(for str: String) {
 		let parts = str.splitIntoGraphemeParts(
 			of: PlowRopeNode.maxLeafCount
@@ -555,6 +555,8 @@ public struct PlowRope {
 		}
 	}
 
+	/// - Complexity: Θ(lg n + m), where 'n' is the length of the rope and 'm'
+	/// is the cost of iterating the collection provided. (Intended.)
 	public mutating func replaceSubrange<R, C>(_ subrange: R, with newElements: C)
 	where C: Collection, R: RangeExpression, Element == C.Element, Index == R.Bound {
 		fatalError("unimplemented")
