@@ -4,7 +4,9 @@ set -eu
 
 # You can run this script through `just distribute`.
 
-BINARY=$(swift build -c release --show-bin-path)/Sumer
+swift build -c release
+
+BINARY="$(swift build -c release --show-bin-path)/Sumer"
 
 WORKDIR=${0:a:h}
 BASEDIR="$WORKDIR/Outputs/$(date +"%Y-%m-%d")"
