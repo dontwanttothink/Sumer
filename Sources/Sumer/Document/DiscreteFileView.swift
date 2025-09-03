@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct DiscreteFilesView: View {
+struct DiscreteFileView: View {
 	var paths: [URL]
 
 	var body: some View {

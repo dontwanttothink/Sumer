@@ -11,10 +11,10 @@ struct ContentView: View {
 			if isDirectory != nil && isDirectory == true {
 				ProjectView(initialPath)
 			} else {
-				DiscreteFilesView(paths: [initialPath])
+				DiscreteFileView(paths: [initialPath])
 			}
 		} else {
-			DiscreteFilesView(paths: [])
+			DiscreteFileView(paths: [])
 		}
 	}
 }
