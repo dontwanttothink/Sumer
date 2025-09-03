@@ -25,8 +25,8 @@ struct SumerCommands: Commands {
 							@MainActor in
 							let selectedURLs = panel.urls
 							SumerApp.open(
-								filesOrDocuments: selectedURLs,
-								openWindow)
+								items: selectedURLs, openWindow
+							)
 						}
 					}
 				}

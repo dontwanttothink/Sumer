@@ -30,7 +30,7 @@ struct SumerApp: App {
 		}
 	}
 
-	static func open(filesOrDocuments: [URL], _ openWindow: OpenWindowAction) {
+	static func open(items: [URL], _ openWindow: OpenWindowAction) {
 		// if various files are given with the same direct ancestor, open those
 		// files in a project with the sidebar collapsed
 
@@ -39,7 +39,7 @@ struct SumerApp: App {
 
 		// open a project for each folder
 
-		for fileOrDocument in filesOrDocuments {
+		for fileOrDocument in items {
 			openWindow(value: fileOrDocument)
 		}
 	}
