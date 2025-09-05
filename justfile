@@ -1,6 +1,6 @@
 # Install watchexec to use this task.
 watch:
-    watchexec swift run
+    watchexec -r swift run
 
 # Available configurations are "debug" and "release".
 build configuration="debug":
