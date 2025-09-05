@@ -13,6 +13,6 @@ struct DiscreteFileView: View {
 					+ paths.map({ $0.lastPathComponent }).joined(
 						separator: ", "))
 		}
-		PlowEditor()
+		PlowEditor().frame(minWidth: 60, minHeight: 60)
 	}
 }
