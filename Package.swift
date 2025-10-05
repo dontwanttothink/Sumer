@@ -10,8 +10,8 @@ let package = Package(
 	],
 	targets: [
 		.target(
-			name: "BridgedC",
-			path: "Sources/C",
+			name: "Bridged",
+			path: "Sources/Bridged",
 			publicHeadersPath: "include"
 		),
 		.target(
@@ -22,7 +22,7 @@ let package = Package(
 		),
 		.executableTarget(
 			name: "Sumer",
-			dependencies: ["BridgedC", "Plow"],
+			dependencies: ["Bridged", "Plow"],
 			swiftSettings: [
 				.strictMemorySafety()
 			]
