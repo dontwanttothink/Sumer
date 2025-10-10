@@ -1,4 +1,4 @@
-import BridgedC
+import Bridged
 import SwiftUI
 
 /// A `TrackedDirectory` connects a `ProjectView` to the file system.
